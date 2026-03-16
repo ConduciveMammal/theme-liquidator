@@ -4,13 +4,26 @@ Interactive CLI for listing Shopify store themes, selecting multiple themes with
 
 This CLI uses Shopify's authorisation code grant for non-embedded apps. On the first run for a shop, it opens the Shopify login window in your browser, stores an offline Admin API token locally, and reuses that token on later runs.
 
+## Warning
+
+This project is currently a proof-of-concept.
+
+Authentication works and the CLI can list installed themes, but theme deletion is not currently usable in practice because Shopify blocks the `themeDelete` mutation unless the app has Shopify's separate theme modification exemption. Without that exemption, the CLI will fail at the deletion step.
+
 ## Requirements
 
 - Node.js `20+`
 - macOS, because secure secret storage currently uses macOS Keychain
 - Shopify app credentials with `read_themes` and `write_themes`
-- Shopify exemption for theme modification access
 - A Shopify app redirect URL that matches the CLI callback address. By default the CLI uses `http://127.0.0.1:3457/oauth/callback`.
+
+## Current Status
+
+- OAuth login flow works
+- Theme listing works
+- Theme selection and review UI works
+- Theme deletion is blocked by Shopify unless the app receives the theme modification exemption
+- Until that exemption is granted, treat this package as an exploratory POC rather than a working deletion tool
 
 ## Install
 
@@ -105,5 +118,18 @@ Runtime environment variable equivalents:
 - Shows an interactive checklist
 - Prevents selection of the live `MAIN` theme and any theme still processing
 - Requires a review step and an exact `DELETE` confirmation before mutations begin
-- Deletes selected themes sequentially and prints a final summary
+- Attempts to delete selected themes sequentially and prints a final summary
 - Reopens the Shopify login window automatically if a stored shop token is no longer valid
+
+## Shopify Limitation
+
+Even with `write_themes`, Shopify currently rejects `themeDelete` unless the app has been granted the protected Theme API exemption for theme modification access.
+
+That means this CLI currently demonstrates:
+
+- OAuth authentication
+- store theme discovery
+- destructive action review UX
+- Shopify API failure handling for protected theme deletion
+
+It does not currently provide working theme deletion on a normal app configuration.
