@@ -1,0 +1,37 @@
+{
+  "name": "shopify-liquidator",
+  "version": "0.1.0",
+  "description": "Interactive CLI for deleting selected Shopify themes",
+  "type": "module",
+  "bin": {
+    "theme-liquidate": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "start": "node ./dist/cli.js",
+    "test": "node --test",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "shopify",
+    "cli",
+    "themes",
+    "ink"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ink": "^6.3.1",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.1"
+  }
+}
