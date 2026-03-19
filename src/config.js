@@ -4,7 +4,7 @@ export const DEFAULT_API_VERSION = '2026-01';
 
 export const HELP_TEXT = `
 Usage:
-  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--api-version 2026-01]
+  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--api-version 2026-01] [--dry] [--verbose]
   theme-liquidate auth login [--shop <store>]
   theme-liquidate auth list
   theme-liquidate auth use --shop <store>
@@ -22,6 +22,8 @@ Run command:
 Auth options:
   --shop            Shopify store identifier, for example "example-store", "example-store.myshopify.com", or "https://admin.shopify.com/store/example-store"
   --api-version     Shopify Admin API version to use (default: ${DEFAULT_API_VERSION})
+  --dry             Simulate theme deletion without sending the Shopify delete mutation
+  --verbose         Show the full theme object in the completion view
   --help, -h        Show this help message
 
 Environment variables:
@@ -59,6 +61,16 @@ export function isValidShopDomain(value) {
 	return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(value);
 }
 
+export function extractShopHandle(value) {
+	const shopDomain = normaliseShopDomain(value);
+
+	if (!shopDomain) {
+		return '';
+	}
+
+	return shopDomain.replace(/\.myshopify\.com$/, '');
+}
+
 function invalidShopResult(shop) {
 	return {
 		ok: false,
@@ -77,6 +89,12 @@ function getParsedValues(argv) {
 				},
 				'api-version': {
 					type: 'string'
+				},
+				dry: {
+					type: 'boolean'
+				},
+				verbose: {
+					type: 'boolean'
 				},
 				help: {
 					type: 'boolean',
@@ -240,7 +258,10 @@ export function parseCliConfig(argv = process.argv.slice(2), env = process.env) 
 		command: {
 			type: 'run',
 			shop,
-			apiVersion
+			shopHandle: extractShopHandle(shop),
+			apiVersion,
+			dry: values.dry ?? false,
+			verbose: values.verbose ?? false
 		}
 	};
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {deleteThemesSequentially, fetchAllThemes, requestGraphQL, ShopifyApiError} from '../src/shopify.js';
+import {deleteTheme, deleteThemesSequentially, fetchAllThemes, requestGraphQL, ShopifyApiError} from '../src/shopify.js';
 
 const clientConfig = {
 	shop: 'example-store.myshopify.com',
@@ -110,6 +110,30 @@ test('deleteThemesSequentially continues after a per-theme user error', async ()
 		]
 	);
 	assert.match(results[1].error, /Theme cannot be deleted/);
+});
+
+test('deleteTheme dry run simulates a delete without calling Shopify', async () => {
+	let fetchCallCount = 0;
+	const fetchImpl = async () => {
+		fetchCallCount += 1;
+		return createJsonResponse(500, {});
+	};
+
+	const theme = {
+		id: 'gid://shopify/OnlineStoreTheme/5',
+		name: 'Gamma',
+		role: 'UNPUBLISHED',
+		processing: false,
+		updatedAt: '2026-01-05T00:00:00Z'
+	};
+
+	const result = await deleteTheme(clientConfig, theme, fetchImpl, {dryRun: true});
+
+	assert.equal(fetchCallCount, 0);
+	assert.equal(result.status, 'simulated');
+	assert.equal(result.id, theme.id);
+	assert.equal(result.name, 'Gamma');
+	assert.deepEqual(result.theme, theme);
 });
 
 test('requestGraphQL surfaces auth and scope guidance on HTTP errors', async () => {

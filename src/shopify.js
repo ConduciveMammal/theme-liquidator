@@ -27,6 +27,18 @@ const THEME_DELETE_MUTATION = `mutation ThemeDelete($id: ID!) {
 
 export const THEME_DELETE_EXEMPTION_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfZTB1vxFC5d1-GPdqYunWRGUoDcOheHQzfK2RoEFEHrknt5g/viewform';
 
+function buildThemeResult(theme, status, overrides = {}) {
+	return {
+		status,
+		id: overrides.id ?? theme.id,
+		name: theme.name,
+		role: theme.role,
+		theme,
+		error: overrides.error ?? '',
+		fatal: overrides.fatal ?? false
+	};
+}
+
 export class ShopifyApiError extends Error {
 	constructor(message, options = {}) {
 		super(message);
@@ -218,7 +230,11 @@ export async function fetchAllThemes(clientConfig, fetchImpl = globalThis.fetch)
 	return themes;
 }
 
-export async function deleteTheme(clientConfig, theme, fetchImpl = globalThis.fetch) {
+export async function deleteTheme(clientConfig, theme, fetchImpl = globalThis.fetch, options = {}) {
+	if (options.dryRun) {
+		return buildThemeResult(theme, 'simulated');
+	}
+
 	const data = await requestGraphQL(
 		clientConfig,
 		THEME_DELETE_MUTATION,
@@ -233,22 +249,14 @@ export async function deleteTheme(clientConfig, theme, fetchImpl = globalThis.fe
 	const userErrors = payload.userErrors ?? [];
 
 	if (userErrors.length > 0) {
-		return {
-			status: 'failed',
-			id: theme.id,
-			name: theme.name,
-			error: userErrors.map((error) => error.message).join('; '),
-			fatal: false
-		};
+		return buildThemeResult(theme, 'failed', {
+			error: userErrors.map((error) => error.message).join('; ')
+		});
 	}
 
-	return {
-		status: 'deleted',
-		id: payload.deletedThemeId ?? theme.id,
-		name: theme.name,
-		error: '',
-		fatal: false
-	};
+	return buildThemeResult(theme, 'deleted', {
+		id: payload.deletedThemeId ?? theme.id
+	});
 }
 
 function formatDeleteFailure(error, themeName) {
@@ -259,37 +267,31 @@ function formatDeleteFailure(error, themeName) {
 	return `Unexpected error while deleting ${themeName}.`;
 }
 
-export async function deleteThemesSequentially(clientConfig, themes, onProgress, fetchImpl = globalThis.fetch) {
+export async function deleteThemesSequentially(clientConfig, themes, onProgress, fetchImpl = globalThis.fetch, options = {}) {
 	const results = [];
 
 	for (const [index, theme] of themes.entries()) {
 		onProgress?.(theme.id, 'pending', '');
 
 		try {
-			const result = await deleteTheme(clientConfig, theme, fetchImpl);
+			const result = await deleteTheme(clientConfig, theme, fetchImpl, options);
 			results.push(result);
 			onProgress?.(theme.id, result.status, result.error);
 		} catch (error) {
 			const message = formatDeleteFailure(error, theme.name);
-			const result = {
-				status: 'failed',
-				id: theme.id,
-				name: theme.name,
+			const result = buildThemeResult(theme, 'failed', {
 				error: message,
 				fatal: error instanceof ShopifyApiError && error.code === 'theme_delete_permission_denied'
-			};
+			});
 			results.push(result);
 			onProgress?.(theme.id, result.status, result.error);
 
 			if (error instanceof ShopifyApiError && error.code === 'theme_delete_permission_denied') {
 				for (const remainingTheme of themes.slice(index + 1)) {
-					const remainingResult = {
-						status: 'failed',
-						id: remainingTheme.id,
-						name: remainingTheme.name,
+					const remainingResult = buildThemeResult(remainingTheme, 'failed', {
 						error: 'Skipped. Theme deletion is blocked for this app.',
 						fatal: true
-					};
+					});
 					results.push(remainingResult);
 					onProgress?.(remainingTheme.id, remainingResult.status, remainingResult.error);
 				}

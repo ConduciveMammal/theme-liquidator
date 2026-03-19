@@ -19,12 +19,14 @@ export function getThemeAvailability(theme) {
 	};
 }
 
-export function createSelectionState(themes) {
+export function createSelectionState(themes, preservedSelectedIds = []) {
+	const selectedIds = preservedSelectedIds.filter((selectedId) => themes.some((theme) => theme.id === selectedId));
+	const firstSelectedIndex = themes.findIndex((theme) => selectedIds.includes(theme.id));
 	const firstSelectableIndex = themes.findIndex((theme) => !getThemeAvailability(theme).disabled);
 
 	return {
-		cursor: firstSelectableIndex >= 0 ? firstSelectableIndex : 0,
-		selectedIds: []
+		cursor: firstSelectedIndex >= 0 ? firstSelectedIndex : firstSelectableIndex >= 0 ? firstSelectableIndex : 0,
+		selectedIds
 	};
 }
 
@@ -60,6 +62,7 @@ export function createDeleteResults(themes) {
 		id: theme.id,
 		name: theme.name,
 		role: theme.role,
+		theme,
 		status: 'pending',
 		error: ''
 	}));

@@ -20,7 +20,10 @@ test('parseCliConfig defaults to run command', () => {
 	assert.deepEqual(result.command, {
 		type: 'run',
 		shop: '',
-		apiVersion: DEFAULT_API_VERSION
+		shopHandle: '',
+		apiVersion: DEFAULT_API_VERSION,
+		dry: false,
+		verbose: false
 	});
 });
 
@@ -31,7 +34,24 @@ test('parseCliConfig normalises a bare store handle for the run command', () => 
 	assert.deepEqual(result.command, {
 		type: 'run',
 		shop: 'flag-store.myshopify.com',
-		apiVersion: DEFAULT_API_VERSION
+		shopHandle: 'flag-store',
+		apiVersion: DEFAULT_API_VERSION,
+		dry: false,
+		verbose: false
+	});
+});
+
+test('parseCliConfig parses dry and verbose flags for the run command', () => {
+	const result = parseCliConfig(['--shop', 'flag-store', '--dry', '--verbose'], {});
+
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.command, {
+		type: 'run',
+		shop: 'flag-store.myshopify.com',
+		shopHandle: 'flag-store',
+		apiVersion: DEFAULT_API_VERSION,
+		dry: true,
+		verbose: true
 	});
 });
 

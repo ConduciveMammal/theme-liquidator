@@ -1,4 +1,4 @@
-import {DEFAULT_API_VERSION} from './config.js';
+import {DEFAULT_API_VERSION, extractShopHandle} from './config.js';
 import {
 	clearGlobalCredentials,
 	createEmptyAuthConfig,
@@ -195,8 +195,11 @@ export async function resolveRunConfig(command, env = process.env) {
 			await validateStoredToken(shop, storedAccessToken, command.apiVersion, env);
 			return {
 				shop,
+				shopHandle: command.shopHandle || extractShopHandle(shop),
 				token: storedAccessToken,
-				apiVersion: command.apiVersion
+				apiVersion: command.apiVersion,
+				dry: command.dry,
+				verbose: command.verbose
 			};
 		} catch (error) {
 			if (!shouldReauthenticate(error)) {
@@ -211,8 +214,11 @@ export async function resolveRunConfig(command, env = process.env) {
 
 	return {
 		shop: authenticatedShop.shop,
+		shopHandle: command.shopHandle || extractShopHandle(authenticatedShop.shop),
 		token: authenticatedShop.accessToken,
-		apiVersion: command.apiVersion
+		apiVersion: command.apiVersion,
+		dry: command.dry,
+		verbose: command.verbose
 	};
 }
 

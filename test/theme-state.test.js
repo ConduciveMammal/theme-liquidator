@@ -35,6 +35,17 @@ test('createSelectionState starts on the first selectable theme', () => {
 	assert.deepEqual(result.selectedIds, []);
 });
 
+test('createSelectionState preserves still-valid selections and moves cursor to the first selected theme', () => {
+	const result = createSelectionState([
+		{id: '1', role: 'UNPUBLISHED', processing: false},
+		{id: '2', role: 'UNPUBLISHED', processing: false},
+		{id: '3', role: 'UNPUBLISHED', processing: false}
+	], ['2', 'missing']);
+
+	assert.equal(result.cursor, 1);
+	assert.deepEqual(result.selectedIds, ['2']);
+});
+
 test('toggleSelected adds and removes ids', () => {
 	assert.deepEqual(toggleSelected([], '1'), ['1']);
 	assert.deepEqual(toggleSelected(['1'], '1'), []);
@@ -50,11 +61,12 @@ test('getSelectedThemes preserves the matching theme objects', () => {
 });
 
 test('delete result helpers track progress and errors', () => {
-	const results = createDeleteResults([{id: '1', name: 'Alpha', role: 'UNPUBLISHED'}]);
+	const theme = {id: '1', name: 'Alpha', role: 'UNPUBLISHED'};
+	const results = createDeleteResults([theme]);
 	const updatedResults = updateDeleteResult(results, '1', 'failed', 'Oops');
 
 	assert.equal(formatThemeMeta({role: 'UNPUBLISHED', processing: true}), 'UNPUBLISHED • Processing');
 	assert.deepEqual(updatedResults, [
-		{id: '1', name: 'Alpha', role: 'UNPUBLISHED', status: 'failed', error: 'Oops'}
+		{id: '1', name: 'Alpha', role: 'UNPUBLISHED', theme, status: 'failed', error: 'Oops'}
 	]);
 });
