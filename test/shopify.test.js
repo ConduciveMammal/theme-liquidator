@@ -4,8 +4,7 @@ import {deleteTheme, deleteThemesSequentially, fetchAllThemes, requestGraphQL, S
 
 const clientConfig = {
 	shop: 'example-store.myshopify.com',
-	token: 'shpat_test',
-	apiVersion: '2026-01'
+	token: 'shpat_test'
 };
 
 function createJsonResponse(status, body) {

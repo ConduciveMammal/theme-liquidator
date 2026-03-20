@@ -32,6 +32,236 @@ function getResultExitCode(results) {
   return results.some((result) => result.status === "failed") ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
+// src/config.js
+import { parseArgs } from "node:util";
+var DEFAULT_API_VERSION = "2026-01";
+var HELP_TEXT = `
+Usage:
+  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--dry] [--verbose]
+  theme-liquidate auth login [--shop <store>]
+  theme-liquidate auth list
+  theme-liquidate auth use --shop <store>
+  theme-liquidate auth remove --shop <store>
+  theme-liquidate auth logout
+
+Run command:
+  Fetches themes for the selected shop and opens the interactive deletion UI.
+  If the selected shop is not authenticated yet, it opens the Shopify login window,
+  stores an offline Admin API token locally, then continues into the theme flow.
+  If --shop is omitted, the default authenticated shop is used.
+  Shopify app credentials must be available through stored login data or the
+  SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET environment variables.
+
+Auth options:
+  --shop            Shopify store identifier, for example "example-store", "example-store.myshopify.com", or "https://admin.shopify.com/store/example-store"
+  --dry             Simulate theme deletion without sending the Shopify delete mutation
+  --verbose         Show the full theme object in the completion view
+  --help, -h        Show this help message
+
+Environment variables:
+  SHOPIFY_STORE_DOMAIN
+  SHOPIFY_CLIENT_ID
+  SHOPIFY_CLIENT_SECRET
+  SHOPIFY_OAUTH_REDIRECT_URI
+  SHOPIFY_SCOPES
+`.trim();
+function normaliseShopDomain(value) {
+  if (!value) {
+    return "";
+  }
+  const trimmedValue = value.trim().toLowerCase();
+  const withoutProtocol = trimmedValue.replace(/^https?:\/\//, "");
+  const withoutQueryOrHash = withoutProtocol.split(/[?#]/, 1)[0];
+  const withoutTrailingSlash = withoutQueryOrHash.replace(/\/$/, "");
+  const adminUrlMatch = withoutTrailingSlash.match(/^admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)$/);
+  if (adminUrlMatch) {
+    return `${adminUrlMatch[1]}.myshopify.com`;
+  }
+  if (/^[a-z0-9][a-z0-9-]*$/.test(withoutTrailingSlash)) {
+    return `${withoutTrailingSlash}.myshopify.com`;
+  }
+  return withoutTrailingSlash;
+}
+function isValidShopDomain(value) {
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(value);
+}
+function extractShopHandle(value) {
+  const shopDomain = normaliseShopDomain(value);
+  if (!shopDomain) {
+    return "";
+  }
+  return shopDomain.replace(/\.myshopify\.com$/, "");
+}
+function invalidShopResult(shop) {
+  return {
+    ok: false,
+    exitCode: 1,
+    message: `Invalid shop identifier "${shop}". Use a store handle, a .myshopify.com domain, or an admin.shopify.com/store/... URL.`
+  };
+}
+function getParsedValues(argv) {
+  try {
+    return parseArgs({
+      args: argv,
+      options: {
+        shop: {
+          type: "string"
+        },
+        dry: {
+          type: "boolean"
+        },
+        verbose: {
+          type: "boolean"
+        },
+        help: {
+          type: "boolean",
+          short: "h"
+        }
+      },
+      allowPositionals: true,
+      strict: true
+    });
+  } catch (error) {
+    return {
+      error
+    };
+  }
+}
+function parseAuthCommand(positionals, values, env) {
+  const action = positionals[1];
+  if (!action || positionals.length > 2) {
+    return {
+      ok: false,
+      exitCode: 1,
+      message: `Invalid auth command.
+
+${HELP_TEXT}`
+    };
+  }
+  if (action === "list") {
+    return {
+      ok: true,
+      command: {
+        type: "auth-list"
+      }
+    };
+  }
+  if (action === "login") {
+    const shop2 = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
+    if (shop2 && !isValidShopDomain(shop2)) {
+      return invalidShopResult(shop2);
+    }
+    return {
+      ok: true,
+      command: {
+        type: "auth-login",
+        shop: shop2
+      }
+    };
+  }
+  if (action === "logout") {
+    return {
+      ok: true,
+      command: {
+        type: "auth-logout"
+      }
+    };
+  }
+  if (!["use", "remove"].includes(action)) {
+    return {
+      ok: false,
+      exitCode: 1,
+      message: `Unknown auth command "${action}".
+
+${HELP_TEXT}`
+    };
+  }
+  const shop = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
+  if (!shop) {
+    return {
+      ok: false,
+      exitCode: 1,
+      message: `Missing required shop identifier.
+
+${HELP_TEXT}`
+    };
+  }
+  if (!isValidShopDomain(shop)) {
+    return invalidShopResult(shop);
+  }
+  if (action === "use") {
+    return {
+      ok: true,
+      command: {
+        type: "auth-use",
+        shop
+      }
+    };
+  }
+  if (action === "remove") {
+    return {
+      ok: true,
+      command: {
+        type: "auth-remove",
+        shop
+      }
+    };
+  }
+  return {
+    ok: false,
+    exitCode: 1,
+    message: `Unknown auth command "${action}".
+
+${HELP_TEXT}`
+  };
+}
+function parseCliConfig(argv = process.argv.slice(2), env = process.env) {
+  const parsed = getParsedValues(argv);
+  if (parsed.error) {
+    return {
+      ok: false,
+      exitCode: 1,
+      message: `${parsed.error.message}
+
+${HELP_TEXT}`
+    };
+  }
+  const { values, positionals } = parsed;
+  if (values.help) {
+    return {
+      ok: false,
+      exitCode: 0,
+      message: HELP_TEXT
+    };
+  }
+  if (positionals[0] === "auth") {
+    return parseAuthCommand(positionals, values, env);
+  }
+  if (positionals.length > 0) {
+    return {
+      ok: false,
+      exitCode: 1,
+      message: `Unknown command "${positionals.join(" ")}".
+
+${HELP_TEXT}`
+    };
+  }
+  const shop = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
+  if (shop && !isValidShopDomain(shop)) {
+    return invalidShopResult(shop);
+  }
+  return {
+    ok: true,
+    command: {
+      type: "run",
+      shop,
+      shopHandle: extractShopHandle(shop),
+      dry: values.dry ?? false,
+      verbose: values.verbose ?? false
+    }
+  };
+}
+
 // src/shopify.js
 var THEME_LIST_QUERY = `query ThemeList($first: Int!, $after: String) {
   themes(first: $first, after: $after) {
@@ -147,7 +377,8 @@ async function parseResponseJson(response) {
   }
 }
 async function requestGraphQL(clientConfig, query, variables, operationName, fetchImpl = globalThis.fetch) {
-  const endpoint = `https://${clientConfig.shop}/admin/api/${clientConfig.apiVersion}/graphql.json`;
+  const apiVersion = clientConfig.apiVersion ?? DEFAULT_API_VERSION;
+  const endpoint = `https://${clientConfig.shop}/admin/api/${apiVersion}/graphql.json`;
   let response;
   try {
     response = await fetchImpl(endpoint, {
@@ -352,6 +583,17 @@ function updateDeleteResult(results, themeId, status, error = "") {
 var h = React.createElement;
 var DELETE_MODE_DRY_RUN = "dry-run";
 var DELETE_MODE_REAL = "delete";
+var ASCII_ART_TITLE = String.raw` /$$       /$$                     /$$       /$$             /$$
+| $$      |__/                    |__/      | $$            | $$
+| $$       /$$  /$$$$$$  /$$   /$$ /$$  /$$$$$$$  /$$$$$$  /$$$$$$    /$$$$$$
+| $$      | $$ /$$__  $$| $$  | $$| $$ /$$__  $$ |____  $$|_  $$_/   /$$__  $$
+| $$      | $$| $$  \ $$| $$  | $$| $$| $$  | $$  /$$$$$$$  | $$    | $$$$$$$$
+| $$      | $$| $$  | $$| $$  | $$| $$| $$  | $$ /$$__  $$  | $$ /$$| $$_____/
+| $$$$$$$$| $$|  $$$$$$$|  $$$$$$/| $$|  $$$$$$$|  $$$$$$$  |  $$$$/|  $$$$$$$
+|________/|__/ \____  $$ \______/ |__/ \_______/ \_______/   \___/   \_______/
+                    | $$
+                    | $$
+                    |__/                                                      `;
 function renderShortcutKey(text) {
   return h(Text, { bold: true, color: "cyan" }, text);
 }
@@ -444,9 +686,15 @@ function renderHeader(config, title, subtitle) {
   return h(
     Box,
     { flexDirection: "column", marginBottom: 1 },
+    h(Box, { marginTop: 1 }, h(Text, { color: "white" }, "It's time to...")),
     h(
       Box,
-      { flexWrap: "wrap", alignItems: "center" },
+      { marginTop: 1 },
+      h(Text, { bold: true, color: "#63F44C" }, ASCII_ART_TITLE)
+    ),
+    h(
+      Box,
+      { flexWrap: "wrap", marginTop: 2, alignItems: "center" },
       renderShopHandleText(config),
       ...renderModeBadge(config).flatMap((badge, index) => [
         h(Text, { key: `spacer-${index}`, color: "gray" }, "  "),
@@ -469,9 +717,9 @@ function renderOpeningSummary(config, themes, selectedIds, deleteMode, hiddenThe
       { color: "white" },
       "Review the deletable themes in ",
       renderShopHandleText(config),
-      ", choose the ones you no longer need, and build a shortlist before anything happens."
+      ", choose the ones you no longer need, and build a shortlist of themes to delete.\n"
     ),
-    h(Text, { color: "gray" }, hiddenThemeCount > 0 ? "Live and processing themes are protected and hidden from this list." : "Only deletable themes are shown in this list."),
+    h(Text, { color: "gray" }, hiddenThemeCount > 0 ? "Live and processing themes are protected and hidden from this list.\n" : "Only deletable themes are shown in this list."),
     h(Text, { color: deleteMode === DELETE_MODE_DRY_RUN ? "cyan" : "yellow" }, `${modeLabel}: ${modeDescription}`),
     h(Box, { marginTop: 1, flexDirection: "column" }, h(Text, { color: "cyan" }, `Deletable themes shown: ${themes.length}`), h(Text, { color: selectedIds.length > 0 ? "cyan" : "gray" }, `Selected: ${selectedIds.length}`))
   ], {
@@ -941,254 +1189,9 @@ function App({ config, onComplete }) {
       { shortcut: "\u2191/\u2193", label: "move" },
       { shortcut: "Space", label: "toggle" },
       { shortcut: "Enter", label: "review" },
-      { shortcut: "q", label: "cancel" },
-      { shortcut: "Esc", label: "cancel" }
+      { shortcut: "Esc/q", label: "cancel" }
     ])
   );
-}
-
-// src/config.js
-import { parseArgs } from "node:util";
-var DEFAULT_API_VERSION = "2026-01";
-var HELP_TEXT = `
-Usage:
-  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--api-version 2026-01] [--dry] [--verbose]
-  theme-liquidate auth login [--shop <store>]
-  theme-liquidate auth list
-  theme-liquidate auth use --shop <store>
-  theme-liquidate auth remove --shop <store>
-  theme-liquidate auth logout
-
-Run command:
-  Fetches themes for the selected shop and opens the interactive deletion UI.
-  If the selected shop is not authenticated yet, it opens the Shopify login window,
-  stores an offline Admin API token locally, then continues into the theme flow.
-  If --shop is omitted, the default authenticated shop is used.
-  Shopify app credentials must be available through stored login data or the
-  SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET environment variables.
-
-Auth options:
-  --shop            Shopify store identifier, for example "example-store", "example-store.myshopify.com", or "https://admin.shopify.com/store/example-store"
-  --api-version     Shopify Admin API version to use (default: ${DEFAULT_API_VERSION})
-  --dry             Simulate theme deletion without sending the Shopify delete mutation
-  --verbose         Show the full theme object in the completion view
-  --help, -h        Show this help message
-
-Environment variables:
-  SHOPIFY_STORE_DOMAIN
-  SHOPIFY_API_VERSION
-  SHOPIFY_CLIENT_ID
-  SHOPIFY_CLIENT_SECRET
-  SHOPIFY_OAUTH_REDIRECT_URI
-  SHOPIFY_SCOPES
-`.trim();
-function normaliseShopDomain(value) {
-  if (!value) {
-    return "";
-  }
-  const trimmedValue = value.trim().toLowerCase();
-  const withoutProtocol = trimmedValue.replace(/^https?:\/\//, "");
-  const withoutQueryOrHash = withoutProtocol.split(/[?#]/, 1)[0];
-  const withoutTrailingSlash = withoutQueryOrHash.replace(/\/$/, "");
-  const adminUrlMatch = withoutTrailingSlash.match(/^admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)$/);
-  if (adminUrlMatch) {
-    return `${adminUrlMatch[1]}.myshopify.com`;
-  }
-  if (/^[a-z0-9][a-z0-9-]*$/.test(withoutTrailingSlash)) {
-    return `${withoutTrailingSlash}.myshopify.com`;
-  }
-  return withoutTrailingSlash;
-}
-function isValidShopDomain(value) {
-  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(value);
-}
-function extractShopHandle(value) {
-  const shopDomain = normaliseShopDomain(value);
-  if (!shopDomain) {
-    return "";
-  }
-  return shopDomain.replace(/\.myshopify\.com$/, "");
-}
-function invalidShopResult(shop) {
-  return {
-    ok: false,
-    exitCode: 1,
-    message: `Invalid shop identifier "${shop}". Use a store handle, a .myshopify.com domain, or an admin.shopify.com/store/... URL.`
-  };
-}
-function getParsedValues(argv) {
-  try {
-    return parseArgs({
-      args: argv,
-      options: {
-        shop: {
-          type: "string"
-        },
-        "api-version": {
-          type: "string"
-        },
-        dry: {
-          type: "boolean"
-        },
-        verbose: {
-          type: "boolean"
-        },
-        help: {
-          type: "boolean",
-          short: "h"
-        }
-      },
-      allowPositionals: true,
-      strict: true
-    });
-  } catch (error) {
-    return {
-      error
-    };
-  }
-}
-function parseAuthCommand(positionals, values, env) {
-  const action = positionals[1];
-  if (!action || positionals.length > 2) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: `Invalid auth command.
-
-${HELP_TEXT}`
-    };
-  }
-  if (action === "list") {
-    return {
-      ok: true,
-      command: {
-        type: "auth-list"
-      }
-    };
-  }
-  if (action === "login") {
-    const shop2 = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
-    if (shop2 && !isValidShopDomain(shop2)) {
-      return invalidShopResult(shop2);
-    }
-    return {
-      ok: true,
-      command: {
-        type: "auth-login",
-        shop: shop2
-      }
-    };
-  }
-  if (action === "logout") {
-    return {
-      ok: true,
-      command: {
-        type: "auth-logout"
-      }
-    };
-  }
-  if (!["use", "remove"].includes(action)) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: `Unknown auth command "${action}".
-
-${HELP_TEXT}`
-    };
-  }
-  const shop = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
-  if (!shop) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: `Missing required shop identifier.
-
-${HELP_TEXT}`
-    };
-  }
-  if (!isValidShopDomain(shop)) {
-    return invalidShopResult(shop);
-  }
-  if (action === "use") {
-    return {
-      ok: true,
-      command: {
-        type: "auth-use",
-        shop
-      }
-    };
-  }
-  if (action === "remove") {
-    return {
-      ok: true,
-      command: {
-        type: "auth-remove",
-        shop
-      }
-    };
-  }
-  return {
-    ok: false,
-    exitCode: 1,
-    message: `Unknown auth command "${action}".
-
-${HELP_TEXT}`
-  };
-}
-function parseCliConfig(argv = process.argv.slice(2), env = process.env) {
-  const parsed = getParsedValues(argv);
-  if (parsed.error) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: `${parsed.error.message}
-
-${HELP_TEXT}`
-    };
-  }
-  const { values, positionals } = parsed;
-  if (values.help) {
-    return {
-      ok: false,
-      exitCode: 0,
-      message: HELP_TEXT
-    };
-  }
-  if (positionals[0] === "auth") {
-    return parseAuthCommand(positionals, values, env);
-  }
-  if (positionals.length > 0) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: `Unknown command "${positionals.join(" ")}".
-
-${HELP_TEXT}`
-    };
-  }
-  const shop = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? "");
-  const apiVersion = (values["api-version"] ?? env.SHOPIFY_API_VERSION ?? DEFAULT_API_VERSION).trim();
-  if (shop && !isValidShopDomain(shop)) {
-    return invalidShopResult(shop);
-  }
-  if (!apiVersion) {
-    return {
-      ok: false,
-      exitCode: 1,
-      message: "Invalid API version. Provide a non-empty value for `--api-version` or `SHOPIFY_API_VERSION`."
-    };
-  }
-  return {
-    ok: true,
-    command: {
-      type: "run",
-      shop,
-      shopHandle: extractShopHandle(shop),
-      apiVersion,
-      dry: values.dry ?? false,
-      verbose: values.verbose ?? false
-    }
-  };
 }
 
 // src/auth-store.js
@@ -1721,12 +1724,11 @@ async function ensureAppCredentials(authConfig, env = process.env, shop = "") {
   }
   throw new Error(getMissingAppCredentialsMessage());
 }
-async function validateStoredToken(shop, accessToken, apiVersion, env = process.env) {
+async function validateStoredToken(shop, accessToken, env = process.env) {
   await requestGraphQL(
     {
       shop,
-      token: accessToken,
-      apiVersion
+      token: accessToken
     },
     AUTH_PROBE_QUERY,
     {},
@@ -1740,7 +1742,7 @@ async function validateStoredToken(shop, accessToken, apiVersion, env = process.
     env
   );
 }
-async function authenticateShop(shop, authConfig, apiVersion, env = process.env) {
+async function authenticateShop(shop, authConfig, env = process.env) {
   const { clientId, clientSecret } = await ensureAppCredentials(authConfig, env, shop);
   process.stdout.write(`Opening Shopify login for ${shop}...
 `);
@@ -1753,7 +1755,7 @@ async function authenticateShop(shop, authConfig, apiVersion, env = process.env)
   if (missingScopes.length > 0) {
     throw new Error(`The approved app is missing required scopes for this CLI: ${missingScopes.join(", ")}.`);
   }
-  await validateStoredToken(shop, token.accessToken, apiVersion, env);
+  await validateStoredToken(shop, token.accessToken, env);
   await setShopAccessToken(shop, token.accessToken);
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
   const configAfterSave = await saveShopProfile(
@@ -1787,12 +1789,11 @@ async function resolveRunConfig(command, env = process.env) {
   const storedAccessToken = await getShopAccessToken(shop);
   if (storedAccessToken) {
     try {
-      await validateStoredToken(shop, storedAccessToken, command.apiVersion, env);
+      await validateStoredToken(shop, storedAccessToken, env);
       return {
         shop,
         shopHandle: command.shopHandle || extractShopHandle(shop),
         token: storedAccessToken,
-        apiVersion: command.apiVersion,
         dry: command.dry,
         verbose: command.verbose
       };
@@ -1804,12 +1805,11 @@ async function resolveRunConfig(command, env = process.env) {
 `);
     }
   }
-  const authenticatedShop = await authenticateShop(shop, authConfig, command.apiVersion, env);
+  const authenticatedShop = await authenticateShop(shop, authConfig, env);
   return {
     shop: authenticatedShop.shop,
     shopHandle: command.shopHandle || extractShopHandle(authenticatedShop.shop),
     token: authenticatedShop.accessToken,
-    apiVersion: command.apiVersion,
     dry: command.dry,
     verbose: command.verbose
   };
@@ -1860,7 +1860,7 @@ async function executeAuthCommand(command, env = process.env) {
     if (!shop) {
       throw new Error("No shop was selected. Run `theme-liquidate auth login --shop <store>` to open the Shopify login flow.");
     }
-    const authenticatedShop = await authenticateShop(shop, authConfig, DEFAULT_API_VERSION, env);
+    const authenticatedShop = await authenticateShop(shop, authConfig, env);
     process.stdout.write(`Authenticated ${authenticatedShop.shop}.
 `);
     process.stdout.write(`Scopes: ${formatScopeSummary(authenticatedShop.scope)}

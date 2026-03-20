@@ -29,6 +29,17 @@ import {
 const h = React.createElement;
 const DELETE_MODE_DRY_RUN = 'dry-run';
 const DELETE_MODE_REAL = 'delete';
+const ASCII_ART_TITLE = String.raw` /$$       /$$                     /$$       /$$             /$$
+| $$      |__/                    |__/      | $$            | $$
+| $$       /$$  /$$$$$$  /$$   /$$ /$$  /$$$$$$$  /$$$$$$  /$$$$$$    /$$$$$$
+| $$      | $$ /$$__  $$| $$  | $$| $$ /$$__  $$ |____  $$|_  $$_/   /$$__  $$
+| $$      | $$| $$  \ $$| $$  | $$| $$| $$  | $$  /$$$$$$$  | $$    | $$$$$$$$
+| $$      | $$| $$  | $$| $$  | $$| $$| $$  | $$ /$$__  $$  | $$ /$$| $$_____/
+| $$$$$$$$| $$|  $$$$$$$|  $$$$$$/| $$|  $$$$$$$|  $$$$$$$  |  $$$$/|  $$$$$$$
+|________/|__/ \____  $$ \______/ |__/ \_______/ \_______/   \___/   \_______/
+                    | $$
+                    | $$
+                    |__/                                                      `;
 
 function renderShortcut(text) {
 	return h(Text, {color: 'gray'}, text);
@@ -141,20 +152,26 @@ function renderModeBadge(config) {
 
 function renderHeader(config, title, subtitle) {
 	return h(
-		Box,
-		{flexDirection: 'column', marginBottom: 1},
-		h(
-			Box,
-			{flexWrap: 'wrap', alignItems: 'center'},
-			renderShopHandleText(config),
-			...renderModeBadge(config).flatMap((badge, index) => [
-				h(Text, {key: `spacer-${index}`, color: 'gray'}, '  '),
-				badge
-			])
-		),
-		h(Box, {marginTop: 1}, h(Text, {bold: true, color: 'cyan'}, title)),
-		h(Text, {color: 'gray'}, subtitle)
-	);
+    Box,
+    { flexDirection: "column", marginBottom: 1 },
+    h(Box, { marginTop: 1 }, h(Text, { color: "white" }, "It's time to...")),
+    h(
+      Box,
+      { marginTop: 1 },
+      h(Text, { bold: true, color: "#63F44C" }, ASCII_ART_TITLE),
+    ),
+    h(
+      Box,
+      { flexWrap: "wrap", marginTop: 2, alignItems: "center" },
+      renderShopHandleText(config),
+      ...renderModeBadge(config).flatMap((badge, index) => [
+        h(Text, { key: `spacer-${index}`, color: "gray" }, "  "),
+        badge,
+      ]),
+    ),
+    h(Box, { marginTop: 1 }, h(Text, { bold: true, color: "cyan" }, title)),
+    h(Text, { color: "gray" }, subtitle),
+  );
 }
 
 function renderShopHandleText(config) {
@@ -171,10 +188,10 @@ function renderOpeningSummary(config, themes, selectedIds, deleteMode, hiddenThe
 		h(Text, {color: 'white'},
 			'Review the deletable themes in ',
 			renderShopHandleText(config),
-			', choose the ones you no longer need, and build a shortlist before anything happens.'
+			', choose the ones you no longer need, and build a shortlist of themes to delete.\n'
 		),
 		h(Text, {color: 'gray'}, hiddenThemeCount > 0
-			? 'Live and processing themes are protected and hidden from this list.'
+			? 'Live and processing themes are protected and hidden from this list.\n'
 			: 'Only deletable themes are shown in this list.'),
 		h(Text, {color: deleteMode === DELETE_MODE_DRY_RUN ? 'cyan' : 'yellow'}, `${modeLabel}: ${modeDescription}`),
 		h(Box, {marginTop: 1, flexDirection: 'column'}, h(Text, {color: 'cyan'}, `Deletable themes shown: ${themes.length}`), h(Text, {color: selectedIds.length > 0 ? 'cyan' : 'gray'}, `Selected: ${selectedIds.length}`))
@@ -740,8 +757,7 @@ export function App({config, onComplete}) {
 			{shortcut: '↑/↓', label: 'move'},
 			{shortcut: 'Space', label: 'toggle'},
 			{shortcut: 'Enter', label: 'review'},
-			{shortcut: 'q', label: 'cancel'},
-			{shortcut: 'Esc', label: 'cancel'}
+			{shortcut: 'Esc/q', label: 'cancel'}
 		])
 	);
 }

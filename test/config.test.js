@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_API_VERSION, HELP_TEXT, isValidShopDomain, normaliseShopDomain, parseCliConfig} from '../src/config.js';
+import {HELP_TEXT, isValidShopDomain, normaliseShopDomain, parseCliConfig} from '../src/config.js';
 
 test('normaliseShopDomain strips protocol and trailing slash', () => {
 	assert.equal(normaliseShopDomain('https://Example-Store.myshopify.com/'), 'example-store.myshopify.com');
@@ -21,7 +21,6 @@ test('parseCliConfig defaults to run command', () => {
 		type: 'run',
 		shop: '',
 		shopHandle: '',
-		apiVersion: DEFAULT_API_VERSION,
 		dry: false,
 		verbose: false
 	});
@@ -35,7 +34,6 @@ test('parseCliConfig normalises a bare store handle for the run command', () => 
 		type: 'run',
 		shop: 'flag-store.myshopify.com',
 		shopHandle: 'flag-store',
-		apiVersion: DEFAULT_API_VERSION,
 		dry: false,
 		verbose: false
 	});
@@ -49,7 +47,6 @@ test('parseCliConfig parses dry and verbose flags for the run command', () => {
 		type: 'run',
 		shop: 'flag-store.myshopify.com',
 		shopHandle: 'flag-store',
-		apiVersion: DEFAULT_API_VERSION,
 		dry: true,
 		verbose: true
 	});

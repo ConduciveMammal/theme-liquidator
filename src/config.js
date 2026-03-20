@@ -4,7 +4,7 @@ export const DEFAULT_API_VERSION = '2026-01';
 
 export const HELP_TEXT = `
 Usage:
-  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--api-version 2026-01] [--dry] [--verbose]
+  theme-liquidate [--shop <store-handle|store.myshopify.com|https://admin.shopify.com/store/store-handle>] [--dry] [--verbose]
   theme-liquidate auth login [--shop <store>]
   theme-liquidate auth list
   theme-liquidate auth use --shop <store>
@@ -21,14 +21,12 @@ Run command:
 
 Auth options:
   --shop            Shopify store identifier, for example "example-store", "example-store.myshopify.com", or "https://admin.shopify.com/store/example-store"
-  --api-version     Shopify Admin API version to use (default: ${DEFAULT_API_VERSION})
   --dry             Simulate theme deletion without sending the Shopify delete mutation
   --verbose         Show the full theme object in the completion view
   --help, -h        Show this help message
 
 Environment variables:
   SHOPIFY_STORE_DOMAIN
-  SHOPIFY_API_VERSION
   SHOPIFY_CLIENT_ID
   SHOPIFY_CLIENT_SECRET
   SHOPIFY_OAUTH_REDIRECT_URI
@@ -85,9 +83,6 @@ function getParsedValues(argv) {
 			args: argv,
 			options: {
 				shop: {
-					type: 'string'
-				},
-				'api-version': {
 					type: 'string'
 				},
 				dry: {
@@ -239,18 +234,9 @@ export function parseCliConfig(argv = process.argv.slice(2), env = process.env) 
 	}
 
 	const shop = normaliseShopDomain(values.shop ?? env.SHOPIFY_STORE_DOMAIN ?? '');
-	const apiVersion = (values['api-version'] ?? env.SHOPIFY_API_VERSION ?? DEFAULT_API_VERSION).trim();
 
 	if (shop && !isValidShopDomain(shop)) {
 		return invalidShopResult(shop);
-	}
-
-	if (!apiVersion) {
-		return {
-			ok: false,
-			exitCode: 1,
-			message: 'Invalid API version. Provide a non-empty value for `--api-version` or `SHOPIFY_API_VERSION`.'
-		};
 	}
 
 	return {
@@ -259,7 +245,6 @@ export function parseCliConfig(argv = process.argv.slice(2), env = process.env) 
 			type: 'run',
 			shop,
 			shopHandle: extractShopHandle(shop),
-			apiVersion,
 			dry: values.dry ?? false,
 			verbose: values.verbose ?? false
 		}

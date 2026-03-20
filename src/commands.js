@@ -1,4 +1,4 @@
-import {DEFAULT_API_VERSION, extractShopHandle} from './config.js';
+import {extractShopHandle} from './config.js';
 import {
 	clearGlobalCredentials,
 	createEmptyAuthConfig,
@@ -114,12 +114,11 @@ async function ensureAppCredentials(authConfig, env = process.env, shop = '') {
 	throw new Error(getMissingAppCredentialsMessage());
 }
 
-async function validateStoredToken(shop, accessToken, apiVersion, env = process.env) {
+async function validateStoredToken(shop, accessToken, env = process.env) {
 	await requestGraphQL(
 		{
 			shop,
-			token: accessToken,
-			apiVersion
+			token: accessToken
 		},
 		AUTH_PROBE_QUERY,
 		{},
@@ -135,7 +134,7 @@ async function validateStoredToken(shop, accessToken, apiVersion, env = process.
 	);
 }
 
-async function authenticateShop(shop, authConfig, apiVersion, env = process.env) {
+async function authenticateShop(shop, authConfig, env = process.env) {
 	const {clientId, clientSecret} = await ensureAppCredentials(authConfig, env, shop);
 	process.stdout.write(`Opening Shopify login for ${shop}...\n`);
 
@@ -150,7 +149,7 @@ async function authenticateShop(shop, authConfig, apiVersion, env = process.env)
 		throw new Error(`The approved app is missing required scopes for this CLI: ${missingScopes.join(', ')}.`);
 	}
 
-	await validateStoredToken(shop, token.accessToken, apiVersion, env);
+	await validateStoredToken(shop, token.accessToken, env);
 	await setShopAccessToken(shop, token.accessToken);
 
 	const timestamp = new Date().toISOString();
@@ -192,12 +191,11 @@ export async function resolveRunConfig(command, env = process.env) {
 
 	if (storedAccessToken) {
 		try {
-			await validateStoredToken(shop, storedAccessToken, command.apiVersion, env);
+			await validateStoredToken(shop, storedAccessToken, env);
 			return {
 				shop,
 				shopHandle: command.shopHandle || extractShopHandle(shop),
 				token: storedAccessToken,
-				apiVersion: command.apiVersion,
 				dry: command.dry,
 				verbose: command.verbose
 			};
@@ -210,13 +208,12 @@ export async function resolveRunConfig(command, env = process.env) {
 		}
 	}
 
-	const authenticatedShop = await authenticateShop(shop, authConfig, command.apiVersion, env);
+	const authenticatedShop = await authenticateShop(shop, authConfig, env);
 
 	return {
 		shop: authenticatedShop.shop,
 		shopHandle: command.shopHandle || extractShopHandle(authenticatedShop.shop),
 		token: authenticatedShop.accessToken,
-		apiVersion: command.apiVersion,
 		dry: command.dry,
 		verbose: command.verbose
 	};
@@ -273,7 +270,7 @@ export async function executeAuthCommand(command, env = process.env) {
 			throw new Error('No shop was selected. Run `theme-liquidate auth login --shop <store>` to open the Shopify login flow.');
 		}
 
-		const authenticatedShop = await authenticateShop(shop, authConfig, DEFAULT_API_VERSION, env);
+		const authenticatedShop = await authenticateShop(shop, authConfig, env);
 		process.stdout.write(`Authenticated ${authenticatedShop.shop}.\n`);
 		process.stdout.write(`Scopes: ${formatScopeSummary(authenticatedShop.scope)}\n`);
 		return 0;

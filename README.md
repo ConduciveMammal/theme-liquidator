@@ -102,7 +102,7 @@ theme-liquidate --shop your-store --dry
 ### Run The Deletion UI
 
 ```bash
-theme-liquidate [--shop <store>] [--api-version 2026-01] [--dry] [--verbose]
+theme-liquidate [--shop <store>] [--dry] [--verbose]
 ```
 
 Examples:
@@ -110,14 +110,13 @@ Examples:
 ```bash
 theme-liquidate --shop your-store
 theme-liquidate --shop your-store.myshopify.com --dry
-theme-liquidate --shop https://admin.shopify.com/store/your-store --api-version 2026-01
+theme-liquidate --shop https://admin.shopify.com/store/your-store
 theme-liquidate --verbose
 ```
 
 Options:
 
 - `--shop`: Store handle, `.myshopify.com` domain, or Shopify admin store URL
-- `--api-version`: Admin API version to use. Default: `2026-01`
 - `--dry`: Simulate deletions without sending the delete mutation
 - `--verbose`: Show full theme objects in the completion view
 - `--help`, `-h`: Show usage text
@@ -182,7 +181,6 @@ Required for first-time authentication unless already stored:
 Optional runtime overrides:
 
 - `SHOPIFY_STORE_DOMAIN`
-- `SHOPIFY_API_VERSION`
 - `SHOPIFY_OAUTH_REDIRECT_URI`
 - `SHOPIFY_SCOPES`
 - `SHOPIFY_LIQUIDATOR_CONFIG_DIR`

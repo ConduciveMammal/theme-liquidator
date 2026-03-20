@@ -1,3 +1,5 @@
+import {DEFAULT_API_VERSION} from './config.js';
+
 const THEME_LIST_QUERY = `query ThemeList($first: Int!, $after: String) {
   themes(first: $first, after: $after) {
     nodes {
@@ -138,7 +140,8 @@ async function parseResponseJson(response) {
 }
 
 export async function requestGraphQL(clientConfig, query, variables, operationName, fetchImpl = globalThis.fetch) {
-	const endpoint = `https://${clientConfig.shop}/admin/api/${clientConfig.apiVersion}/graphql.json`;
+	const apiVersion = clientConfig.apiVersion ?? DEFAULT_API_VERSION;
+	const endpoint = `https://${clientConfig.shop}/admin/api/${apiVersion}/graphql.json`;
 	let response;
 
 	try {
