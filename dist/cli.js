@@ -1200,12 +1200,18 @@ import os from "node:os";
 import path from "node:path";
 var APP_NAME = "shopify-liquidator";
 var CONFIG_FILENAME = "config.json";
-function getBaseConfigDir(env = process.env) {
+function getBaseConfigDir(env = process.env, platform = process.platform) {
   if (env.SHOPIFY_LIQUIDATOR_CONFIG_DIR) {
     return env.SHOPIFY_LIQUIDATOR_CONFIG_DIR;
   }
-  if (process.platform === "darwin") {
+  if (platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", APP_NAME);
+  }
+  if (platform === "win32") {
+    const appDataDir = env.APPDATA || env.LOCALAPPDATA;
+    if (appDataDir) {
+      return path.join(appDataDir, APP_NAME);
+    }
   }
   if (env.XDG_CONFIG_HOME) {
     return path.join(env.XDG_CONFIG_HOME, APP_NAME);
@@ -1319,7 +1325,7 @@ function getMissingRequiredScopes(scopeValue) {
   });
 }
 
-// src/keychain.js
+// src/secret-store.js
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
@@ -1331,82 +1337,135 @@ function getLegacyClientSecretAccountName(shop) {
 function getShopAccessTokenAccountName(shop) {
   return `${shop}::offline-token`;
 }
-function ensureDarwinSupport() {
-  if (process.platform !== "darwin") {
-    throw new Error("Secure credential storage currently supports macOS Keychain only.");
+function createSecretBackendUnavailableError(error) {
+  const messageLines = [
+    "Secure credential storage is unavailable on this machine.",
+    "Install and enable a supported OS credential store, then try again."
+  ];
+  if (process.platform === "linux") {
+    messageLines.push("On Linux, this usually means a Secret Service keyring such as GNOME Keyring or KWallet is not available.");
   }
+  return new Error(messageLines.join(" "), { cause: error });
 }
-async function setSecret(accountName, secret, execImpl = execFileAsync) {
-  ensureDarwinSupport();
-  await execImpl("security", [
-    "add-generic-password",
-    "-U",
-    "-a",
-    accountName,
-    "-s",
-    SERVICE_NAME,
-    "-w",
-    secret
-  ]);
+function isMacOsSecretNotFoundError(error) {
+  return error?.code === 44;
 }
-async function getSecret(accountName, execImpl = execFileAsync) {
-  ensureDarwinSupport();
+async function loadKeytar() {
   try {
-    const { stdout } = await execImpl("security", [
-      "find-generic-password",
-      "-a",
-      accountName,
-      "-s",
-      SERVICE_NAME,
-      "-w"
-    ]);
-    return stdout.trim();
-  } catch (error) {
-    if (error.code === 44) {
-      return "";
+    const keytarModule = await import("keytar");
+    const keytar = keytarModule.default ?? keytarModule;
+    if (typeof keytar?.setPassword !== "function" || typeof keytar?.getPassword !== "function" || typeof keytar?.deletePassword !== "function") {
+      throw new TypeError("The loaded keytar module does not expose the expected credential methods.");
     }
-    throw error;
+    return keytar;
+  } catch (error) {
+    throw createSecretBackendUnavailableError(error);
   }
 }
-async function deleteSecret(accountName, execImpl = execFileAsync) {
-  ensureDarwinSupport();
-  try {
-    await execImpl("security", [
-      "delete-generic-password",
-      "-a",
-      accountName,
-      "-s",
-      SERVICE_NAME
-    ]);
-  } catch (error) {
-    if (error.code !== 44) {
-      throw error;
+var defaultBackendPromise;
+function createKeytarBackend(keytar) {
+  return {
+    async setSecret(accountName, secret) {
+      await keytar.setPassword(SERVICE_NAME, accountName, secret);
+    },
+    async getSecret(accountName) {
+      return await keytar.getPassword(SERVICE_NAME, accountName) ?? "";
+    },
+    async deleteSecret(accountName) {
+      await keytar.deletePassword(SERVICE_NAME, accountName);
     }
+  };
+}
+function createMacOsKeychainBackend(execImpl = execFileAsync) {
+  return {
+    async setSecret(accountName, secret) {
+      await execImpl("security", [
+        "add-generic-password",
+        "-U",
+        "-a",
+        accountName,
+        "-s",
+        SERVICE_NAME,
+        "-w",
+        secret
+      ]);
+    },
+    async getSecret(accountName) {
+      try {
+        const { stdout } = await execImpl("security", [
+          "find-generic-password",
+          "-a",
+          accountName,
+          "-s",
+          SERVICE_NAME,
+          "-w"
+        ]);
+        return stdout.trim();
+      } catch (error) {
+        if (isMacOsSecretNotFoundError(error)) {
+          return "";
+        }
+        throw error;
+      }
+    },
+    async deleteSecret(accountName) {
+      try {
+        await execImpl("security", [
+          "delete-generic-password",
+          "-a",
+          accountName,
+          "-s",
+          SERVICE_NAME
+        ]);
+      } catch (error) {
+        if (!isMacOsSecretNotFoundError(error)) {
+          throw error;
+        }
+      }
+    }
+  };
+}
+async function getDefaultBackend() {
+  if (!defaultBackendPromise) {
+    defaultBackendPromise = process.platform === "darwin" ? Promise.resolve(createMacOsKeychainBackend()) : loadKeytar().then((keytar) => createKeytarBackend(keytar));
   }
+  return defaultBackendPromise;
 }
-async function getClientSecret(shop, execImpl = execFileAsync) {
-  return getSecret(getLegacyClientSecretAccountName(shop), execImpl);
+async function setSecret(accountName, secret, backend) {
+  const activeBackend = backend ?? await getDefaultBackend();
+  await activeBackend.setSecret(accountName, secret);
 }
-async function deleteClientSecret(shop, execImpl = execFileAsync) {
-  return deleteSecret(getLegacyClientSecretAccountName(shop), execImpl);
+async function getSecret(accountName, backend) {
+  const activeBackend = backend ?? await getDefaultBackend();
+  return activeBackend.getSecret(accountName);
 }
-async function setShopAccessToken(shop, token, execImpl = execFileAsync) {
-  return setSecret(getShopAccessTokenAccountName(shop), token, execImpl);
+async function deleteSecret(accountName, backend) {
+  const activeBackend = backend ?? await getDefaultBackend();
+  await activeBackend.deleteSecret(accountName);
 }
-async function getShopAccessToken(shop, execImpl = execFileAsync) {
-  return getSecret(getShopAccessTokenAccountName(shop), execImpl);
+async function getClientSecret(shop, backend) {
+  return getSecret(getLegacyClientSecretAccountName(shop), backend);
 }
-async function deleteShopAccessToken(shop, execImpl = execFileAsync) {
-  return deleteSecret(getShopAccessTokenAccountName(shop), execImpl);
+async function deleteClientSecret(shop, backend) {
+  return deleteSecret(getLegacyClientSecretAccountName(shop), backend);
 }
-async function setAppClientSecret(secret, execImpl = execFileAsync) {
-  return setSecret(GLOBAL_ACCOUNT_NAME, secret, execImpl);
+async function setShopAccessToken(shop, token, backend) {
+  return setSecret(getShopAccessTokenAccountName(shop), token, backend);
 }
-async function getAppClientSecret(execImpl = execFileAsync) {
-  return getSecret(GLOBAL_ACCOUNT_NAME, execImpl);
+async function getShopAccessToken(shop, backend) {
+  return getSecret(getShopAccessTokenAccountName(shop), backend);
 }
-async function deleteAppClientSecret(execImpl = execFileAsync) {
-  return deleteSecret(GLOBAL_ACCOUNT_NAME, execImpl);
+async function deleteShopAccessToken(shop, backend) {
+  return deleteSecret(getShopAccessTokenAccountName(shop), backend);
+}
+async function setAppClientSecret(secret, backend) {
+  return setSecret(GLOBAL_ACCOUNT_NAME, secret, backend);
+}
+async function getAppClientSecret(backend) {
+  return getSecret(GLOBAL_ACCOUNT_NAME, backend);
+}
+async function deleteAppClientSecret(backend) {
+  return deleteSecret(GLOBAL_ACCOUNT_NAME, backend);
 }
 
 // src/oauth.js

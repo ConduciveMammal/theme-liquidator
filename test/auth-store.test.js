@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
 	clearGlobalCredentials,
 	createEmptyAuthConfig,
+	getBaseConfigDir,
 	readAuthConfig,
 	removeShopProfile,
 	saveGlobalCredentials,
@@ -26,6 +27,18 @@ async function createConfigEnv() {
 test('readAuthConfig returns an empty config when none exists', async () => {
 	const {env} = await createConfigEnv();
 	assert.deepEqual(await readAuthConfig(env), createEmptyAuthConfig());
+});
+
+test('getBaseConfigDir uses AppData on Windows', () => {
+	assert.equal(
+		getBaseConfigDir(
+			{
+				APPDATA: 'C:\\Users\\Liam\\AppData\\Roaming'
+			},
+			'win32'
+		),
+		path.join('C:\\Users\\Liam\\AppData\\Roaming', 'shopify-liquidator')
+	);
 });
 
 test('saveGlobalCredentials stores the shared client ID', async () => {

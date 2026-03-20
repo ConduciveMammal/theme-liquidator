@@ -5,13 +5,21 @@ import path from 'node:path';
 const APP_NAME = 'shopify-liquidator';
 const CONFIG_FILENAME = 'config.json';
 
-function getBaseConfigDir(env = process.env) {
+export function getBaseConfigDir(env = process.env, platform = process.platform) {
 	if (env.SHOPIFY_LIQUIDATOR_CONFIG_DIR) {
 		return env.SHOPIFY_LIQUIDATOR_CONFIG_DIR;
 	}
 
-	if (process.platform === 'darwin') {
+	if (platform === 'darwin') {
 		return path.join(os.homedir(), 'Library', 'Application Support', APP_NAME);
+	}
+
+	if (platform === 'win32') {
+		const appDataDir = env.APPDATA || env.LOCALAPPDATA;
+
+		if (appDataDir) {
+			return path.join(appDataDir, APP_NAME);
+		}
 	}
 
 	if (env.XDG_CONFIG_HOME) {

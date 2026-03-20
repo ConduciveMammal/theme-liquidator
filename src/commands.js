@@ -19,7 +19,7 @@ import {
 	getShopAccessToken,
 	setAppClientSecret,
 	setShopAccessToken
-} from './keychain.js';
+} from './secret-store.js';
 import {getRedirectUri, runOAuthBrowserFlow, ShopifyOAuthError} from './oauth.js';
 import {requestGraphQL, ShopifyApiError} from './shopify.js';
 

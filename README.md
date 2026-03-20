@@ -22,7 +22,10 @@ Interactive terminal UI for reviewing Shopify themes, shortlisting the ones you 
 ## Requirements
 
 - Node.js `20+`
-- macOS for secure secret storage via Keychain
+- A supported desktop credential store:
+  - macOS Keychain
+  - Windows Credential Manager
+  - Linux Secret Service keyring such as GNOME Keyring or KWallet
 - A Shopify app with:
   - `read_themes`
   - `write_themes`
@@ -185,7 +188,8 @@ Optional runtime overrides:
 - `SHOPIFY_SCOPES`
 - `SHOPIFY_LIQUIDATOR_CONFIG_DIR`
 
-If both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are provided, the CLI stores the client ID in its config and the client secret in Keychain so later runs do not need the credentials exported again.
+If both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are provided, the CLI stores the client ID in its config and the client secret in the native OS credential store so later runs do not need the credentials exported again.
+If secure storage is unavailable, the CLI will ask you to enable an OS credential store instead of writing secrets into the JSON config file.
 
 ## Storage Model
 
@@ -193,8 +197,10 @@ If both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are provided, the CLI st
 
 - Config file:
   - macOS default: `~/Library/Application Support/shopify-liquidator/config.json`
+  - Windows default: `%APPDATA%\shopify-liquidator\config.json`
+  - Linux default: `${XDG_CONFIG_HOME:-~/.config}/shopify-liquidator/config.json`
   - override: `SHOPIFY_LIQUIDATOR_CONFIG_DIR`
-- macOS Keychain:
+- Native OS credential store:
   - shared app client secret
   - per-shop offline access tokens
 
