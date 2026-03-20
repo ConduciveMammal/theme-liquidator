@@ -35,9 +35,10 @@ export function getAuthConfigPath(env = process.env) {
 
 export function createEmptyAuthConfig() {
 	return {
-		version: 2,
+		version: 3,
 		credentials: {
-			clientId: ''
+			clientId: '',
+			apiBaseUrl: ''
 		},
 		defaultShop: '',
 		shops: {}
@@ -56,9 +57,10 @@ export async function readAuthConfig(env = process.env) {
 			?? '';
 
 		return {
-			version: parsed.version ?? 2,
+			version: parsed.version ?? 3,
 			credentials: {
-				clientId: migratedClientId
+				clientId: migratedClientId,
+				apiBaseUrl: parsed.credentials?.apiBaseUrl ?? ''
 			},
 			defaultShop: parsed.defaultShop ?? '',
 			shops
@@ -88,6 +90,20 @@ export async function saveGlobalCredentials(clientId, env = process.env) {
 export async function clearGlobalCredentials(env = process.env) {
 	const config = await readAuthConfig(env);
 	config.credentials.clientId = '';
+	await writeAuthConfig(config, env);
+	return config;
+}
+
+export async function saveBrokerApiBaseUrl(apiBaseUrl, env = process.env) {
+	const config = await readAuthConfig(env);
+	config.credentials.apiBaseUrl = apiBaseUrl;
+	await writeAuthConfig(config, env);
+	return config;
+}
+
+export async function clearBrokerApiBaseUrl(env = process.env) {
+	const config = await readAuthConfig(env);
+	config.credentials.apiBaseUrl = '';
 	await writeAuthConfig(config, env);
 	return config;
 }

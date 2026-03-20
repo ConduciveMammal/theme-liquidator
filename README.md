@@ -3,15 +3,18 @@
 
 Interactive terminal UI for reviewing Shopify themes, shortlisting the ones you want to remove, and deleting them with an explicit confirmation step.
 
-`shopify-liquidator` is built for operators who want something safer than ad-hoc API scripts. It opens a browser-based Shopify OAuth flow when needed, stores reusable login details locally, hides protected themes from the selection list, supports dry runs, and then processes deletions sequentially so failures are easy to understand.
+`shopify-liquidator` is built for operators who want something safer than ad-hoc API scripts. It opens a browser-based Shopify install flow when needed, stores reusable login details locally, hides protected themes from the selection list, supports dry runs, and then processes deletions sequentially so failures are easy to understand.
+
+For public release, the recommended setup is now a hosted broker on Vercel. In that mode, your Shopify app credentials and exemption stay on your server, merchants authorise your app in the browser, and the CLI only stores a broker session token locally.
 
 > [!IMPORTANT]
 > Real theme deletion still depends on Shopify granting your app protected theme modification access. Without that exemption, authentication and theme discovery work, dry runs work, but the live `themeDelete` mutation will be rejected by Shopify.
 
 ## Features
 
-- Browser-based OAuth login for Shopify Admin API access
-- Reusable offline access tokens stored locally per shop
+- Hosted broker mode for public distribution through your own Shopify app
+- Browser-based Shopify install flow for merchant authorisation
+- Reusable broker session tokens or offline access tokens stored locally per shop
 - Interactive checklist UI built for terminal use
 - Shop input normalisation for store handles, `.myshopify.com` domains, and `admin.shopify.com/store/...` URLs
 - Automatic protection for live (`MAIN`) and still-processing themes
@@ -30,9 +33,18 @@ Interactive terminal UI for reviewing Shopify themes, shortlisting the ones you 
 - A Shopify app with:
   - `read_themes`
   - `write_themes`
-- A Shopify app redirect URL that matches the CLI callback address
+- For public release, a hosted broker deployment such as Vercel
+- For production broker mode, persistent storage for broker state and shop tokens:
+  - Vercel KV is recommended
+  - local file storage is only intended for local development
 
-By default, the CLI expects this OAuth callback URL:
+If you use hosted broker mode, set a stable app URL in Vercel and add this callback URL to your Shopify app:
+
+```text
+https://your-app.example.com/api/shopify/callback
+```
+
+If you use the older direct local OAuth mode, the CLI expects this callback URL:
 
 ```text
 http://127.0.0.1:3457/oauth/callback
@@ -75,6 +87,44 @@ theme-liquidate
 ```
 
 ## Quick Start
+
+### Recommended: Hosted Broker On Vercel
+
+1. Deploy this repo to Vercel.
+
+2. Set these Vercel environment variables:
+
+```bash
+SHOPIFY_APP_URL="https://your-app.example.com"
+SHOPIFY_APP_CLIENT_ID="your-client-id"
+SHOPIFY_APP_CLIENT_SECRET="your-client-secret"
+SHOPIFY_LIQUIDATOR_SESSION_SECRET="generate-a-long-random-string"
+SHOPIFY_SCOPES="read_themes,write_themes"
+KV_REST_API_URL="..."
+KV_REST_API_TOKEN="..."
+```
+
+3. Add the hosted callback URL to your Shopify app configuration:
+
+```text
+https://your-app.example.com/api/shopify/callback
+```
+
+4. Run the CLI against your hosted broker:
+
+```bash
+export SHOPIFY_LIQUIDATOR_API_BASE_URL="https://your-app.example.com"
+theme-liquidate --shop your-store --dry
+```
+
+5. On first use, the CLI:
+
+- opens your hosted Shopify install flow in the browser
+- waits for the merchant to authorise your app
+- stores a broker session token locally
+- uses your Vercel backend for theme listing and deletion
+
+### Legacy: Direct Local OAuth
 
 1. Export your Shopify app credentials:
 
@@ -177,20 +227,48 @@ Deletion is processed sequentially. If Shopify rejects theme deletion at the app
 
 ## Environment Variables
 
-Required for first-time authentication unless already stored:
+Hosted broker mode:
+
+- `SHOPIFY_LIQUIDATOR_API_BASE_URL`
+
+Direct local OAuth mode only:
 
 - `SHOPIFY_CLIENT_ID`
 - `SHOPIFY_CLIENT_SECRET`
 
-Optional runtime overrides:
+Shared CLI overrides:
 
 - `SHOPIFY_STORE_DOMAIN`
-- `SHOPIFY_OAUTH_REDIRECT_URI`
 - `SHOPIFY_SCOPES`
 - `SHOPIFY_LIQUIDATOR_CONFIG_DIR`
 
-If both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are provided, the CLI stores the client ID in its config and the client secret in the native OS credential store so later runs do not need the credentials exported again.
+Direct local OAuth overrides:
+
+- `SHOPIFY_OAUTH_REDIRECT_URI`
+
+If hosted broker mode is configured, the CLI stores the broker base URL in its config and a per-shop broker session token in the native OS credential store.
+If direct local OAuth mode is used, the CLI stores the client ID in its config, the client secret in the native OS credential store, and a per-shop offline token in the native OS credential store.
 If secure storage is unavailable, the CLI will ask you to enable an OS credential store instead of writing secrets into the JSON config file.
+
+### Vercel Environment Variables
+
+Recommended for public release:
+
+- `SHOPIFY_APP_URL`
+- `SHOPIFY_APP_CLIENT_ID`
+- `SHOPIFY_APP_CLIENT_SECRET`
+- `SHOPIFY_LIQUIDATOR_SESSION_SECRET`
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+
+Optional:
+
+- `SHOPIFY_SCOPES`
+- `SHOPIFY_LIQUIDATOR_AUTH_TTL_SECONDS`
+- `SHOPIFY_LIQUIDATOR_CLI_TOKEN_TTL_SECONDS`
+- `SHOPIFY_LIQUIDATOR_BROKER_STORE_PATH`
+
+If `KV_REST_API_URL` and `KV_REST_API_TOKEN` are not set, the broker falls back to a local file in `/tmp`, which is useful for local development but not suitable for production on Vercel.
 
 ## Storage Model
 
@@ -202,14 +280,23 @@ If secure storage is unavailable, the CLI will ask you to enable an OS credentia
   - Linux default: `${XDG_CONFIG_HOME:-~/.config}/shopify-liquidator/config.json`
   - override: `SHOPIFY_LIQUIDATOR_CONFIG_DIR`
 - Native OS credential store:
-  - shared app client secret
-  - per-shop offline access tokens
+  - per-shop broker session tokens in hosted mode
+  - shared app client secret in direct local OAuth mode
+  - per-shop offline access tokens in direct local OAuth mode
 
-The config file tracks the default shop and saved shop metadata such as scopes and validation timestamps. Secrets are not written to the JSON config file.
+The config file tracks the default shop, the hosted broker base URL, and saved shop metadata such as scopes and validation timestamps. Secrets are not written to the JSON config file.
+
+In hosted broker mode, Vercel stores:
+
+- pending browser auth sessions
+- per-shop Shopify offline tokens
+- issued CLI session tokens
 
 ## Shopify-Specific Caveat
 
 The CLI supports live deletion, but Shopify may still block it for your app. When that happens, you will typically see a failure indicating that theme modification access is protected.
+
+In hosted broker mode, that exemption remains tied to your Shopify app, not to each CLI user. Merchants install and authorise your app, and your backend performs the protected `themeDelete` calls on behalf of the CLI.
 
 Shopify exemption form:
 
@@ -217,7 +304,7 @@ Shopify exemption form:
 
 This means the current tool is useful in two modes:
 
-- fully operational deletion tool for apps that already have the exemption
+- fully operational deletion tool for a hosted app that already has the exemption
 - safe review and dry-run workflow for teams preparing to use deletion once access is granted
 
 ## Development

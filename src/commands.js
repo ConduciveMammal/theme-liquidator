@@ -1,9 +1,11 @@
 import {extractShopHandle} from './config.js';
 import {
 	clearGlobalCredentials,
+	clearBrokerApiBaseUrl,
 	createEmptyAuthConfig,
 	readAuthConfig,
 	removeShopProfile,
+	saveBrokerApiBaseUrl,
 	saveGlobalCredentials,
 	saveShopProfile,
 	setDefaultShop,
@@ -22,6 +24,12 @@ import {
 } from './secret-store.js';
 import {getRedirectUri, runOAuthBrowserFlow, ShopifyOAuthError} from './oauth.js';
 import {requestGraphQL, ShopifyApiError} from './shopify.js';
+import {
+	completeBrokeredAuth,
+	getBrokerApiBaseUrl,
+	revokeBrokerSession,
+	validateBrokerSession
+} from './broker-client.js';
 
 const AUTH_PROBE_QUERY = `query AuthProbe {
   themes(first: 1) {
@@ -41,6 +49,14 @@ function formatScopeSummary(scopeValue) {
 
 function getMissingAppCredentialsMessage() {
 	return 'Missing Shopify app credentials. Set `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` so `theme-liquidate` can open the Shopify login window.';
+}
+
+function getMissingBrokerConfigurationMessage() {
+	return 'Missing hosted broker configuration. Set `SHOPIFY_LIQUIDATOR_API_BASE_URL` to use your Vercel-hosted Shopify app.';
+}
+
+function isBrokerProfile(profile) {
+	return profile?.tokenType === 'broker_session' || profile?.authMethod === 'brokered';
 }
 
 async function migrateLegacyAppSecret(authConfig, env = process.env, shop = '') {
@@ -134,6 +150,31 @@ async function validateStoredToken(shop, accessToken, env = process.env) {
 	);
 }
 
+async function validateStoredBrokerToken(shop, apiBaseUrl, sessionToken, env = process.env) {
+	const response = await validateBrokerSession({
+		apiBaseUrl,
+		token: sessionToken
+	});
+
+	if (response.shop && response.shop !== shop) {
+		throw new ShopifyApiError('The hosted broker returned a session for a different shop.', {
+			operation: 'broker_session',
+			details: [`Expected ${shop}, received ${response.shop}.`]
+		});
+	}
+
+	await saveShopProfile(
+		shop,
+		{
+			lastValidatedAt: new Date().toISOString(),
+			scope: response.scope ?? ''
+		},
+		env
+	);
+
+	return response;
+}
+
 async function authenticateShop(shop, authConfig, env = process.env) {
 	const {clientId, clientSecret} = await ensureAppCredentials(authConfig, env, shop);
 	process.stdout.write(`Opening Shopify login for ${shop}...\n`);
@@ -175,6 +216,50 @@ async function authenticateShop(shop, authConfig, env = process.env) {
 	};
 }
 
+async function authenticateShopViaBroker(shop, authConfig, env = process.env) {
+	const apiBaseUrl = getBrokerApiBaseUrl(env, authConfig, authConfig.shops[shop]);
+
+	if (!apiBaseUrl) {
+		throw new Error(getMissingBrokerConfigurationMessage());
+	}
+
+	if (authConfig.credentials.apiBaseUrl !== apiBaseUrl) {
+		await saveBrokerApiBaseUrl(apiBaseUrl, env);
+	}
+
+	process.stdout.write(`Opening hosted Shopify login for ${shop}...\n`);
+	const completedAuth = await completeBrokeredAuth({
+		apiBaseUrl,
+		shop
+	});
+	const timestamp = new Date().toISOString();
+	const configAfterSave = await saveShopProfile(
+		completedAuth.shop ?? shop,
+		{
+			scope: completedAuth.scope ?? '',
+			authMethod: 'brokered',
+			tokenType: 'broker_session',
+			authenticatedAt: timestamp,
+			lastValidatedAt: timestamp,
+			apiBaseUrl
+		},
+		env
+	);
+
+	await setShopAccessToken(completedAuth.shop ?? shop, completedAuth.cliToken);
+
+	if (!configAfterSave.defaultShop) {
+		await setDefaultShop(completedAuth.shop ?? shop, env);
+	}
+
+	return {
+		shop: completedAuth.shop ?? shop,
+		sessionToken: completedAuth.cliToken,
+		scope: completedAuth.scope ?? '',
+		apiBaseUrl
+	};
+}
+
 function shouldReauthenticate(error) {
 	return error instanceof ShopifyApiError && [401, 403].includes(error.status);
 }
@@ -187,17 +272,35 @@ export async function resolveRunConfig(command, env = process.env) {
 		throw new Error('No shop was selected. Run `theme-liquidate --shop <store>` to open the Shopify login flow.');
 	}
 
+	const shopProfile = authConfig.shops[shop];
+	const brokerApiBaseUrl = getBrokerApiBaseUrl(env, authConfig, shopProfile);
+	const brokerMode = Boolean(brokerApiBaseUrl);
 	const storedAccessToken = await getShopAccessToken(shop);
 
 	if (storedAccessToken) {
 		try {
+			if (brokerMode) {
+				const validatedSession = await validateStoredBrokerToken(shop, brokerApiBaseUrl, storedAccessToken, env);
+				return {
+					shop,
+					shopHandle: command.shopHandle || extractShopHandle(shop),
+					token: storedAccessToken,
+					dry: command.dry,
+					verbose: command.verbose,
+					authMode: 'broker',
+					apiBaseUrl: brokerApiBaseUrl,
+					scope: validatedSession.scope ?? shopProfile?.scope ?? ''
+				};
+			}
+
 			await validateStoredToken(shop, storedAccessToken, env);
 			return {
 				shop,
 				shopHandle: command.shopHandle || extractShopHandle(shop),
 				token: storedAccessToken,
 				dry: command.dry,
-				verbose: command.verbose
+				verbose: command.verbose,
+				authMode: 'direct'
 			};
 		} catch (error) {
 			if (!shouldReauthenticate(error)) {
@@ -208,6 +311,20 @@ export async function resolveRunConfig(command, env = process.env) {
 		}
 	}
 
+	if (brokerMode) {
+		const authenticatedShop = await authenticateShopViaBroker(shop, authConfig, env);
+		return {
+			shop: authenticatedShop.shop,
+			shopHandle: command.shopHandle || extractShopHandle(authenticatedShop.shop),
+			token: authenticatedShop.sessionToken,
+			dry: command.dry,
+			verbose: command.verbose,
+			authMode: 'broker',
+			apiBaseUrl: authenticatedShop.apiBaseUrl,
+			scope: authenticatedShop.scope
+		};
+	}
+
 	const authenticatedShop = await authenticateShop(shop, authConfig, env);
 
 	return {
@@ -215,17 +332,25 @@ export async function resolveRunConfig(command, env = process.env) {
 		shopHandle: command.shopHandle || extractShopHandle(authenticatedShop.shop),
 		token: authenticatedShop.accessToken,
 		dry: command.dry,
-		verbose: command.verbose
+		verbose: command.verbose,
+		authMode: 'direct',
+		scope: authenticatedShop.scope
 	};
 }
 
 export async function executeAuthCommand(command, env = process.env) {
 	if (command.type === 'auth-list') {
 		const authConfig = await readAuthConfig(env);
-		const appSecret = await getAppClientSecret();
-		const loginStatus = authConfig.credentials.clientId && appSecret ? 'configured' : 'missing';
-		process.stdout.write(`App login: ${loginStatus}\n`);
-		process.stdout.write(`OAuth redirect URI: ${getRedirectUri(env)}\n`);
+		const brokerApiBaseUrl = getBrokerApiBaseUrl(env, authConfig);
+
+		if (brokerApiBaseUrl) {
+			process.stdout.write(`Hosted broker: ${brokerApiBaseUrl}\n`);
+		} else {
+			const appSecret = await getAppClientSecret();
+			const loginStatus = authConfig.credentials.clientId && appSecret ? 'configured' : 'missing';
+			process.stdout.write(`App login: ${loginStatus}\n`);
+			process.stdout.write(`OAuth redirect URI: ${getRedirectUri(env)}\n`);
+		}
 
 		const shops = Object.entries(authConfig.shops);
 
@@ -250,6 +375,24 @@ export async function executeAuthCommand(command, env = process.env) {
 	}
 
 	if (command.type === 'auth-remove') {
+		const authConfig = await readAuthConfig(env);
+		const profile = authConfig.shops[command.shop];
+		const brokerApiBaseUrl = getBrokerApiBaseUrl(env, authConfig, profile);
+		const storedToken = await getShopAccessToken(command.shop);
+
+		if (storedToken && brokerApiBaseUrl && isBrokerProfile(profile)) {
+			try {
+				await revokeBrokerSession({
+					apiBaseUrl: brokerApiBaseUrl,
+					token: storedToken
+				});
+			} catch (error) {
+				if (!shouldReauthenticate(error)) {
+					throw error;
+				}
+			}
+		}
+
 		const updatedConfig = await removeShopProfile(command.shop, env);
 		await deleteShopAccessToken(command.shop);
 		await deleteClientSecret(command.shop);
@@ -270,6 +413,15 @@ export async function executeAuthCommand(command, env = process.env) {
 			throw new Error('No shop was selected. Run `theme-liquidate auth login --shop <store>` to open the Shopify login flow.');
 		}
 
+		const brokerApiBaseUrl = getBrokerApiBaseUrl(env, authConfig, authConfig.shops[shop]);
+
+		if (brokerApiBaseUrl) {
+			const authenticatedShop = await authenticateShopViaBroker(shop, authConfig, env);
+			process.stdout.write(`Authenticated ${authenticatedShop.shop} via hosted broker.\n`);
+			process.stdout.write(`Scopes: ${formatScopeSummary(authenticatedShop.scope)}\n`);
+			return 0;
+		}
+
 		const authenticatedShop = await authenticateShop(shop, authConfig, env);
 		process.stdout.write(`Authenticated ${authenticatedShop.shop}.\n`);
 		process.stdout.write(`Scopes: ${formatScopeSummary(authenticatedShop.scope)}\n`);
@@ -278,13 +430,31 @@ export async function executeAuthCommand(command, env = process.env) {
 
 	if (command.type === 'auth-logout') {
 		const authConfig = await readAuthConfig(env);
+		const brokerApiBaseUrl = getBrokerApiBaseUrl(env, authConfig);
 
 		for (const shop of Object.keys(authConfig.shops)) {
+			const profile = authConfig.shops[shop];
+			const storedToken = await getShopAccessToken(shop);
+
+			if (storedToken && brokerApiBaseUrl && isBrokerProfile(profile)) {
+				try {
+					await revokeBrokerSession({
+						apiBaseUrl: brokerApiBaseUrl,
+						token: storedToken
+					});
+				} catch (error) {
+					if (!shouldReauthenticate(error)) {
+						throw error;
+					}
+				}
+			}
+
 			await deleteShopAccessToken(shop);
 			await deleteClientSecret(shop);
 		}
 
 		await deleteAppClientSecret();
+		await clearBrokerApiBaseUrl(env);
 		await clearGlobalCredentials(env);
 		await writeAuthConfig(createEmptyAuthConfig(), env);
 		process.stdout.write('Removed stored Shopify login data.\n');

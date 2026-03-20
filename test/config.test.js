@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {HELP_TEXT, isValidShopDomain, normaliseShopDomain, parseCliConfig} from '../src/config.js';
+import {HELP_TEXT, isValidShopDomain, normaliseApiBaseUrl, normaliseShopDomain, parseCliConfig} from '../src/config.js';
 
 test('normaliseShopDomain strips protocol and trailing slash', () => {
 	assert.equal(normaliseShopDomain('https://Example-Store.myshopify.com/'), 'example-store.myshopify.com');
@@ -11,6 +11,14 @@ test('normaliseShopDomain accepts supported shop identifier formats', () => {
 	assert.equal(normaliseShopDomain('https://admin.shopify.com/store/valid-store'), 'valid-store.myshopify.com');
 	assert.equal(isValidShopDomain('valid-store.myshopify.com'), true);
 	assert.equal(isValidShopDomain('https://invalid.example.com'), false);
+});
+
+test('normaliseApiBaseUrl strips query and trailing slash', () => {
+	assert.equal(
+		normaliseApiBaseUrl('https://liquidator.example.com/api/?preview=1'),
+		'https://liquidator.example.com/api'
+	);
+	assert.equal(normaliseApiBaseUrl('ftp://invalid.example.com'), '');
 });
 
 test('parseCliConfig defaults to run command', () => {

@@ -13,11 +13,12 @@ Usage:
 
 Run command:
   Fetches themes for the selected shop and opens the interactive deletion UI.
-  If the selected shop is not authenticated yet, it opens the Shopify login window,
-  stores an offline Admin API token locally, then continues into the theme flow.
+  If SHOPIFY_LIQUIDATOR_API_BASE_URL is set, the CLI opens your hosted Shopify
+  install flow and stores a broker session token locally. Otherwise it falls back
+  to the local OAuth flow and stores an offline Admin API token locally.
   If --shop is omitted, the default authenticated shop is used.
-  Shopify app credentials must be available through stored login data or the
-  SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET environment variables.
+  Direct local OAuth requires Shopify app credentials through stored login data
+  or the SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET environment variables.
 
 Auth options:
   --shop            Shopify store identifier, for example "example-store", "example-store.myshopify.com", or "https://admin.shopify.com/store/example-store"
@@ -27,11 +28,35 @@ Auth options:
 
 Environment variables:
   SHOPIFY_STORE_DOMAIN
+  SHOPIFY_LIQUIDATOR_API_BASE_URL
   SHOPIFY_CLIENT_ID
   SHOPIFY_CLIENT_SECRET
   SHOPIFY_OAUTH_REDIRECT_URI
   SHOPIFY_SCOPES
 `.trim();
+
+export function normaliseApiBaseUrl(value) {
+	if (!value) {
+		return '';
+	}
+
+	const trimmedValue = value.trim();
+
+	try {
+		const url = new URL(trimmedValue);
+
+		if (!['http:', 'https:'].includes(url.protocol)) {
+			return '';
+		}
+
+		url.hash = '';
+		url.search = '';
+		url.pathname = url.pathname.replace(/\/$/, '');
+		return url.toString().replace(/\/$/, '');
+	} catch {
+		return '';
+	}
+}
 
 export function normaliseShopDomain(value) {
 	if (!value) {

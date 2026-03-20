@@ -9,6 +9,7 @@ import {
 	getBaseConfigDir,
 	readAuthConfig,
 	removeShopProfile,
+	saveBrokerApiBaseUrl,
 	saveGlobalCredentials,
 	saveShopProfile,
 	setDefaultShop
@@ -58,6 +59,15 @@ test('clearGlobalCredentials removes the shared client ID', async () => {
 
 	const config = await readAuthConfig(env);
 	assert.equal(config.credentials.clientId, '');
+});
+
+test('saveBrokerApiBaseUrl stores the hosted broker URL', async () => {
+	const {env} = await createConfigEnv();
+
+	await saveBrokerApiBaseUrl('https://liquidator.example.com', env);
+
+	const config = await readAuthConfig(env);
+	assert.equal(config.credentials.apiBaseUrl, 'https://liquidator.example.com');
 });
 
 test('saveShopProfile stores profile data and default shop', async () => {

@@ -14,7 +14,8 @@ import {
 	isDeleteConfirmationValid
 } from './flow.js';
 import {EXIT_CANCELLED, EXIT_SUCCESS} from './exit-codes.js';
-import {deleteThemesSequentially, fetchAllThemes, ShopifyApiError, THEME_DELETE_EXEMPTION_URL} from './shopify.js';
+import {ShopifyApiError, THEME_DELETE_EXEMPTION_URL} from './shopify.js';
+import {deleteThemesForConfig, fetchThemesForConfig} from './runtime-client.js';
 import {
 	createDeleteResults,
 	createSelectionState,
@@ -370,7 +371,7 @@ export function App({config, onComplete}) {
 	}
 
 	async function loadThemes(preservedSelectedIds = []) {
-		const fetchedThemes = await fetchAllThemes(config);
+		const fetchedThemes = await fetchThemesForConfig(config);
 		applyThemeSelectionState(fetchedThemes, preservedSelectedIds);
 	}
 
@@ -379,7 +380,7 @@ export function App({config, onComplete}) {
 
 		async function initialiseThemes() {
 			try {
-				const fetchedThemes = await fetchAllThemes(config);
+				const fetchedThemes = await fetchThemesForConfig(config);
 
 				if (cancelled) {
 					return;
@@ -417,7 +418,7 @@ export function App({config, onComplete}) {
 		setDeleteResults(createDeleteResults(selectedThemes));
 
 		async function deleteSelectedThemes() {
-			const results = await deleteThemesSequentially(config, selectedThemes, (themeId, status, message) => {
+			const results = await deleteThemesForConfig(config, selectedThemes, (themeId, status, message) => {
 				if (cancelled) {
 					return;
 				}
