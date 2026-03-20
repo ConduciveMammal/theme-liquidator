@@ -1,4 +1,5 @@
-# `shopify-liquidator`
+<img width="1780" height="1186" alt="CleanShot 2026-03-20 at 11  00 28" src="https://github.com/user-attachments/assets/af826a9d-5516-4e88-b596-b6e95a9271f7" />
+
 
 Interactive terminal UI for reviewing Shopify themes, shortlisting the ones you want to remove, and deleting them with an explicit confirmation step.
 
