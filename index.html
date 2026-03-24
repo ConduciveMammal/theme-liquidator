@@ -3,21 +3,33 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="shopify-api-key" content="%SHOPIFY_API_KEY%">
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
-    <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+    <meta name="shopify-api-key" content="12e224fd4a57f1bc42f5a32466faf2bd">
+  	<script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
     <title>Theme Liquidator</title>
   </head>
   <body>
     <s-page heading="Theme Liquidator CLI" inline-size="large">
       <s-banner
-        heading="Delete Shopify themes with a slower, safer workflow"
+        heading="Delete Shopify themes with a faster, safer workflow"
         tone="info"
       >
         Theme Liquidator helps operators review deletable themes, shortlist them
         in the terminal, and confirm every destructive action before anything is
         removed.
       </s-banner>
+
+      <s-section heading="On first use">
+        <s-ordered-list>
+          <s-list-item
+            >The CLI opens your hosted Shopify install flow in the
+            browser.</s-list-item
+          >
+          <s-list-item>The merchant authorises the app.</s-list-item>
+          <s-list-item
+            >The CLI stores a broker session token locally.</s-list-item
+          >
+        </s-ordered-list>
+      </s-section>
 
       <s-section heading="Install the CLI">
         <s-stack direction="block" gap="base">
@@ -29,13 +41,12 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>
-							npm install
-							npm run build
-							npm install -g
-						</pre>
+npm install
+npm run build
+npm install -g</pre>
           </s-box>
           <s-paragraph>
             After the global install, run <code>theme-liquidate</code> from any
@@ -54,7 +65,7 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>theme-liquidate --shop your-store --dry</pre>
           </s-box>
@@ -65,24 +76,11 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>theme-liquidate --shop your-store</pre>
           </s-box>
         </s-stack>
-      </s-section>
-
-      <s-section heading="On first use">
-        <s-ordered-list>
-          <s-list-item
-            >The CLI opens your hosted Shopify install flow in the
-            browser.</s-list-item
-          >
-          <s-list-item>The merchant authorises the app.</s-list-item>
-          <s-list-item
-            >The CLI stores a broker session token locally.</s-list-item
-          >
-        </s-ordered-list>
       </s-section>
 
       <s-section heading="Helpful commands" slot="aside">
@@ -91,7 +89,7 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>theme-liquidate auth login --shop your-store</pre>
           </s-box>
@@ -99,7 +97,7 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>theme-liquidate auth list</pre>
           </s-box>
@@ -107,10 +105,13 @@
             padding="base"
             background="subdued"
             border="base"
-            border-radius="base"
+             borderRadius="base"
           >
             <pre>theme-liquidate auth logout</pre>
           </s-box>
+					<s-stack direction="inline" gap="small">
+					<s-link href="https://merlyndesignworks.co.uk" target="_blank">Liam Merlyn</s-link><small>&copy; 2026</small>
+					</s-stack>
         </s-stack>
       </s-section>
     </s-page>
