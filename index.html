@@ -1,119 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="shopify-api-key" content="12e224fd4a57f1bc42f5a32466faf2bd">
-  	<script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="shopify-api-key" content="12e224fd4a57f1bc42f5a32466faf2bd" />
+    <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
     <title>Theme Liquidator</title>
+
+    <style>
+      pre { margin: 0; }
+    </style>
   </head>
   <body>
     <s-page heading="Theme Liquidator CLI" inline-size="large">
-      <s-banner
-        heading="Delete Shopify themes with a faster, safer workflow"
-        tone="info"
-      >
-        Theme Liquidator helps operators review deletable themes, shortlist them
-        in the terminal, and confirm every destructive action before anything is
-        removed.
+      <s-banner heading="Delete Shopify themes with a faster, safer workflow" tone="info">
+        Theme Liquidator helps you safely remove unused Shopify themes from the command line, with a dry run and a confirmation step before anything is deleted.
       </s-banner>
-
-      <s-section heading="On first use">
-        <s-ordered-list>
-          <s-list-item
-            >The CLI opens your hosted Shopify install flow in the
-            browser.</s-list-item
-          >
-          <s-list-item>The merchant authorises the app.</s-list-item>
-          <s-list-item
-            >The CLI stores a broker session token locally.</s-list-item
-          >
-        </s-ordered-list>
-      </s-section>
 
       <s-section heading="Install the CLI">
         <s-stack direction="block" gap="base">
-          <s-paragraph>
-            Use the steps from the README to install and build the CLI from this
-            project.
-          </s-paragraph>
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>
-npm install
-npm run build
-npm install -g</pre>
+          <s-paragraph>Install the CLI globally:</s-paragraph>
+          <s-box padding="base" background="subdued" border="base" borderRadius="base">
+            <pre>npm install -g @conducivemammal/shopify-liquidator</pre>
           </s-box>
-          <s-paragraph>
-            After the global install, run <code>theme-liquidate</code> from any
-            terminal.
-          </s-paragraph>
+          <s-paragraph>After the install, run <code>theme-liquidate</code> from any terminal.</s-paragraph>
         </s-stack>
       </s-section>
 
-      <s-section heading="Use it">
+      <s-section heading="Start with a dry run">
         <s-stack direction="block" gap="base">
-          <s-paragraph>
-            Start with a dry run so you can review the shortlist before any real
-            deletion is attempted.
-          </s-paragraph>
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>theme-liquidate --shop your-store --dry</pre>
+              <s-paragraph>Run this first so you can review the shortlist before any real deletion is attempted:</s-paragraph>
+              <s-box padding="base" background="subdued" border="base" borderRadius="base">
+                <pre>theme-liquidate --shop &lt;store&gt; --dry</pre>
+              </s-box>
+              <s-paragraph>Your live theme is never shown as deletable.</s-paragraph>
+            </s-stack>
+          </s-section>
+
+      <s-section heading="When the dry run looks right">
+        <s-stack direction="block" gap="base">
+              <s-paragraph>
+                Press <code>D</code> in the terminal or rerun without <code>--dry</code>:
+              </s-paragraph>
+              <s-box padding="base" background="subdued" border="base" borderRadius="base">
+                <pre>theme-liquidate --shop &lt;store&gt;</pre>
+              </s-box>
+            </s-stack>
+          </s-section>
+
+      <s-section heading="On first use">
+        <s-ordered-list>
+          <s-list-item>The browser opens Shopify so you can approve the app.</s-list-item>
+          <s-list-item>The CLI saves your login for next time.</s-list-item>
+          <s-list-item>You return to the terminal and continue.</s-list-item>
+        </s-ordered-list>
+      </s-section>
+
+      <s-section heading="Helpful commands">
+        <s-stack direction="block" gap="base">
+          <s-box padding="base" background="subdued" border="base" borderRadius="base">
+            <pre>theme-liquidate auth &lt;login|list|logout&gt; [--shop &lt;store&gt;]</pre>
           </s-box>
-          <s-paragraph>
-            When the dry run looks right, rerun without <code>--dry</code>.
-          </s-paragraph>
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>theme-liquidate --shop your-store</pre>
-          </s-box>
+          <s-paragraph>Use <code>--shop &lt;store&gt;</code> with <code>login</code> when you want to authorise a specific shop.</s-paragraph>
         </s-stack>
       </s-section>
 
-      <s-section heading="Helpful commands" slot="aside">
+      <s-section heading="Resources" slot="aside">
         <s-stack direction="block" gap="base">
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>theme-liquidate auth login --shop your-store</pre>
-          </s-box>
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>theme-liquidate auth list</pre>
-          </s-box>
-          <s-box
-            padding="base"
-            background="subdued"
-            border="base"
-             borderRadius="base"
-          >
-            <pre>theme-liquidate auth logout</pre>
-          </s-box>
-					<s-stack direction="inline" gap="small">
-					<s-link href="https://merlyndesignworks.co.uk" target="_blank">Liam Merlyn</s-link><small>&copy; 2026</small>
-					</s-stack>
+          <s-link href="https://github.com/ConduciveMammal/shopify-liquidator" target="_blank">GitHub</s-link>
+          <s-link href="https://github.com/ConduciveMammal/shopify-liquidator/issues" target="_blank">Support</s-link>
+          <s-link href="https://merlyndesignworks.co.uk/?utm_source=shopify-liquidator&utm_medium=app_homepage&utm_campaign=homepage_link" target="_blank">Merlyn Design Works</s-link>
         </s-stack>
       </s-section>
+
+      <s-stack alignItems="center" paddingBlock="base">
+        <s-text color="subdued">
+          <s-link href="https://merlyndesignworks.co.uk/?utm_source=shopify-liquidator&utm_medium=app_homepage&utm_campaign=footer_link" target="_blank">Shopify Liquidator &mdash; Liam Merlyn</s-link>
+        </s-text>
+      </s-stack>
     </s-page>
   </body>
 </html>

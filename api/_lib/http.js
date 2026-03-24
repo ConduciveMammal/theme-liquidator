@@ -20,12 +20,32 @@ const statusPageTemplatePromise = readFile(
 	'utf8'
 );
 
+function getStatusTone(statusCode, title) {
+	const normalisedTitle = String(title).toLowerCase();
+
+	if (statusCode >= 200 && statusCode < 300) {
+		return 'success';
+	}
+
+	if (statusCode >= 500) {
+		return 'critical';
+	}
+
+	if (normalisedTitle.includes('hmac')) {
+		return 'critical';
+	}
+
+	return 'warning';
+}
+
 export async function sendHtml(response, statusCode, title, message) {
 	const safeTitle = escapeHtml(title);
 	const safeMessage = escapeHtml(message);
+	const tone = getStatusTone(statusCode, title);
 	const template = await statusPageTemplatePromise;
 	const html = template
 		.replaceAll('{{TITLE}}', safeTitle)
+		.replace('{{TONE}}', tone)
 		.replace('{{MESSAGE}}', safeMessage);
 
 	response.statusCode = statusCode;
