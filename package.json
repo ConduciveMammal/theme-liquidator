@@ -15,6 +15,8 @@
   },
   "scripts": {
     "build": "node ./scripts/build.mjs",
+    "format": "prettier --write \"{index.html,api/**/*.html,src/**/*.js,scripts/**/*.mjs,test/**/*.js}\"",
+    "format:check": "prettier --check \"{index.html,api/**/*.html,src/**/*.js,scripts/**/*.mjs,test/**/*.js}\"",
     "start": "node ./dist/cli.js",
     "test": "node --test",
     "prepublishOnly": "npm run build && npm test"
@@ -46,6 +48,7 @@
     "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "esbuild": "^0.25.1"
+    "esbuild": "^0.25.1",
+    "prettier": "^3.8.1"
   }
 }
