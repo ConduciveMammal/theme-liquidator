@@ -1,10 +1,10 @@
 <img width="1780" height="1186" alt="CleanShot 2026-03-20 at 11 00 28" src="https://github.com/user-attachments/assets/af826a9d-5516-4e88-b596-b6e95a9271f7" />
 
-# Shopify Liquidator
+# Theme Liquidator
 
 Interactive terminal UI for reviewing Shopify themes, shortlisting the ones you want to remove, and deleting them with an explicit confirmation step.
 
-Shopify Liquidator is built for users delete Shopify themes en masse from a store. It opens a browser-based Shopify install flow when needed, stores reusable login details locally, hides protected themes from the selection list, supports dry runs, and processes deletions sequentially so failures are easier to understand.
+Theme Liquidator is built for users to delete Shopify themes en masse from a store. It opens a browser-based Shopify install flow when needed, stores reusable login details locally, hides protected themes from the selection list, supports dry runs, and processes deletions sequentially so failures are easier to understand.
 
 To use the CLI, the store needs the companion Shopify app installed so the authentication flow can complete and the CLI can access the Theme API on that shop.
 
@@ -21,7 +21,7 @@ To use the CLI, the store needs the companion Shopify app installed so the authe
 Install the published CLI globally:
 
 ```bash
-npm install -g @conducivemammal/shopify-liquidator
+npm install -g @conducivemammal/theme-liquidator
 ```
 
 After installation, use:
@@ -156,7 +156,7 @@ If secure storage is unavailable, the CLI asks you to enable an OS credential st
 
 ### Storage model
 
-Shopify Liquidator stores data in two places:
+Theme Liquidator stores data in two places:
 
 - Config file:
   - macOS default: `~/Library/Application Support/shopify-liquidator/config.json`
@@ -168,6 +168,8 @@ Shopify Liquidator stores data in two places:
   - per-shop login details in direct local OAuth mode
 
 The config file tracks the default shop and saved shop metadata such as scopes and validation timestamps. Secrets are not written to the JSON config file.
+
+The storage directory and credential service still use the legacy `shopify-liquidator` identifier so existing saved authentication continues to work after the package rename.
 
 ## Develop locally
 

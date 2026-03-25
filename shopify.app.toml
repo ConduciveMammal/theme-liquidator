@@ -8,7 +8,7 @@ scopes = "read_themes,write_themes"
 
 [auth]
 redirect_urls = [
-	"https://liquidator.merlyndesignworks.co.uk/api/shopify/callback"
+	"https://liquidator.merlyndesignworks.co.uk/api/auth/callback"
 ]
 
 [webhooks]
