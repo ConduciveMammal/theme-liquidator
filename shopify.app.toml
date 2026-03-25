@@ -1,0 +1,19 @@
+client_id = "12e224fd4a57f1bc42f5a32466faf2bd"
+name = "Theme Liquidator"
+application_url = "https://liquidator.merlyndesignworks.co.uk"
+embedded = false
+
+[access_scopes]
+scopes = "read_themes,write_themes"
+
+[auth]
+redirect_urls = [
+	"https://liquidator.merlyndesignworks.co.uk/api/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "/api/webhooks"

@@ -6,6 +6,24 @@ export function sendJson(response, statusCode, payload) {
 	response.end(JSON.stringify(payload));
 }
 
+export async function readRawBody(request) {
+	if (Buffer.isBuffer(request.body)) {
+		return request.body;
+	}
+
+	if (typeof request.body === 'string') {
+		return Buffer.from(request.body, 'utf8');
+	}
+
+	const chunks = [];
+
+	for await (const chunk of request) {
+		chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+	}
+
+	return Buffer.concat(chunks);
+}
+
 function escapeHtml(value) {
 	return String(value)
 		.replaceAll('&', '&amp;')
@@ -72,19 +90,15 @@ export function getBearerToken(request) {
 }
 
 export async function readJsonBody(request) {
-	if (request.body && typeof request.body === 'object') {
+	if (request.body && typeof request.body === 'object' && !Buffer.isBuffer(request.body)) {
 		return request.body;
 	}
 
-	const chunks = [];
+	const rawBody = await readRawBody(request);
 
-	for await (const chunk of request) {
-		chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-	}
-
-	if (chunks.length === 0) {
+	if (rawBody.length === 0) {
 		return {};
 	}
 
-	return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+	return JSON.parse(rawBody.toString('utf8'));
 }

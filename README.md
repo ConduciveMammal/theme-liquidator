@@ -219,6 +219,7 @@ For local development, create or use a Shopify app with:
 
 - `read_themes`
 - `write_themes`
+- mandatory compliance webhooks for `customers/data_request`, `customers/redact`, and `shop/redact`
 
 Export your Shopify app credentials:
 
@@ -238,6 +239,8 @@ Default requested scopes:
 ```text
 read_themes,write_themes
 ```
+
+For App Store review, Shopify requires the compliance webhooks even if the app does not keep customer data. This repo now includes a root `shopify.app.toml` that subscribes those topics to `/api/webhooks`. After updating the app configuration, deploy that version through Shopify CLI so the subscriptions are attached to the released app version used for review.
 
 ### Publishing
 
