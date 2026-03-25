@@ -4,7 +4,7 @@
   "description": "Interactive CLI for deleting selected Shopify themes",
   "type": "module",
   "bin": {
-    "theme-liquidate": "./dist/cli.js"
+    "theme-liquidate": "dist/cli.js"
   },
   "files": [
     "dist",
